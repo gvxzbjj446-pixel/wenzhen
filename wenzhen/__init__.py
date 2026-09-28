@@ -12,7 +12,7 @@ from . import db
 from .security import csrf_protect, csrf_token, set_security_headers
 from .utils import register_template_filters
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 # 界面文件的类型。Windows 上 Python 会从注册表读取文件类型，不少电脑把 .js 登记成
 # text/plain；配合 nosniff 响应头，浏览器会拒绝执行界面脚本（点选项、开方等都没反应）。
@@ -55,8 +55,9 @@ def create_app(test_config=None, instance_path=None):
     app.jinja_env.globals["csrf_token"] = csrf_token
     register_template_filters(app)
 
-    from . import auth, backup_views, formulas, main, patients, visits
-    for blueprint in (auth.bp, main.bp, patients.bp, visits.bp, formulas.bp, backup_views.bp):
+    from . import auth, backup_views, formulas, main, patients, therapy, visits
+    for blueprint in (auth.bp, main.bp, patients.bp, visits.bp, formulas.bp, therapy.bp,
+                      backup_views.bp):
         app.register_blueprint(blueprint)
 
     with app.app_context():

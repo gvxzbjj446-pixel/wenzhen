@@ -43,6 +43,8 @@ def test_full_package_contents(app, client, tmp_path):
         "manifest.json", "wenzhen.sqlite3", "README.txt", "data.json",
         "csv/patients.csv", "csv/visits.csv", "csv/prescription_items.csv",
         "csv/formulas.csv", "csv/formula_items.csv",
+        "csv/therapy_courses.csv", "csv/therapy_course_items.csv", "csv/therapy_sessions.csv",
+        "csv/therapy_session_items.csv", "csv/therapy_types.csv",
     }
     stored = json.loads(files["manifest.json"])
     assert stored == manifest

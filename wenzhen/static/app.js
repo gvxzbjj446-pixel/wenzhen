@@ -91,37 +91,44 @@
     return value.split(/[，,、；;\s]+/).filter(Boolean);
   }
 
-  function chipActive(input, text, joiner) {
+  // data-replace：单选，点击即替换整个内容（如频次、类别）
+  function chipActive(input, chip) {
+    var text = chip.textContent;
     var value = input.value;
-    return joiner ? segments(value).indexOf(text) >= 0 : value.indexOf(text) >= 0;
+    if (chip.hasAttribute("data-replace")) return value.trim() === text;
+    return chip.dataset.joiner ? segments(value).indexOf(text) >= 0 : value.indexOf(text) >= 0;
   }
 
   function refreshChips(input) {
     document.querySelectorAll('.chip[data-target="' + input.id + '"]').forEach(function (chip) {
-      chip.classList.toggle("on", chipActive(input, chip.textContent, chip.dataset.joiner));
+      chip.classList.toggle("on", chipActive(input, chip));
     });
+  }
+
+  function toggleText(input, text, joiner, replace) {
+    var value = input.value.trim();
+    if (replace) {
+      input.value = value === text ? "" : text;
+    } else if (joiner) {
+      var parts = segments(value);
+      var i = parts.indexOf(text);
+      if (i >= 0) {
+        parts.splice(i, 1);
+        input.value = parts.join(joiner);
+      } else {
+        input.value = value ? value.replace(/[，,、；;\s]+$/, "") + joiner + text : text;
+      }
+    } else {
+      input.value = value.indexOf(text) >= 0 ? value.replace(text, "") : value + text;
+    }
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.focus();
   }
 
   document.querySelectorAll(".chip[data-target]").forEach(function (chip) {
     chip.addEventListener("click", function () {
-      var input = document.getElementById(chip.dataset.target);
-      var text = chip.textContent;
-      var joiner = chip.dataset.joiner;
-      var value = input.value.trim();
-      if (joiner) {
-        var parts = segments(value);
-        var i = parts.indexOf(text);
-        if (i >= 0) {
-          parts.splice(i, 1);
-          input.value = parts.join(joiner);
-        } else {
-          input.value = value ? value.replace(/[，,、；;\s]+$/, "") + joiner + text : text;
-        }
-      } else {
-        input.value = value.indexOf(text) >= 0 ? value.replace(text, "") : value + text;
-      }
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.focus();
+      toggleText(document.getElementById(chip.dataset.target), chip.textContent,
+                 chip.dataset.joiner, chip.hasAttribute("data-replace"));
     });
   });
   document.querySelectorAll("input, textarea").forEach(function (input) {
@@ -224,7 +231,8 @@
       if (!info.ok) { toast(info.message, "error"); return; }
       var message = "将用所选备份替换当前的全部数据。\n\n" +
         (info.created_at ? "备份时间：" + info.created_at + "\n" : "") +
-        "备份中有患者 " + info.patients + " 人、就诊记录 " + info.visits + " 条。\n" +
+        "备份中有患者 " + info.patients + " 人、就诊记录 " + info.visits + " 条" +
+        (info.therapy_sessions ? "、理疗记录 " + info.therapy_sessions + " 次" : "") + "。\n" +
         "当前数据会先自动另存一份，以防万一。\n\n确定恢复吗？";
       return confirmDialog(message, { ok: "恢复", danger: true }).then(function (yes) {
         if (!yes) return;
@@ -489,6 +497,156 @@
   }
 
   document.querySelectorAll("[data-herb-editor]").forEach(initHerbEditor);
+
+  /* ---------- 理疗项目编辑：默认时长、穴位快选 ---------- */
+  function initItemEditor(root) {
+    var tbody = root.querySelector("[data-item-rows]");
+    var tpl = root.querySelector("template[data-item-template]");
+    var summary = root.querySelector("[data-item-summary]");
+    var targetLabel = root.querySelector("[data-site-target]");
+    var chips = Array.prototype.slice.call(root.querySelectorAll("[data-site-chip]"));
+    var form = root.closest("form");
+    var minutes = readJSON("therapy-minutes") || {};
+    var active = null;
+    var ORDER = ["therapy", "site", "minutes", "note"];
+
+    function rows() { return Array.prototype.slice.call(tbody.querySelectorAll("tr")); }
+    function field(row, name) { return row.querySelector('[name="item_' + name + '"]'); }
+
+    function addRow(focus) {
+      var row = tpl.content.firstElementChild.cloneNode(true);
+      tbody.appendChild(row);
+      if (focus) field(row, "therapy").focus();
+      return row;
+    }
+
+    // 穴位快选填入“当前行”：最近点过的一行，默认第一行
+    function refresh() {
+      var list = rows();
+      var count = 0;
+      var total = 0;
+      list.forEach(function (row, i) {
+        row.querySelector(".idx").textContent = i + 1;
+        if (!field(row, "therapy").value.trim()) return;
+        count += 1;
+        var m = parseInt(field(row, "minutes").value, 10);
+        if (!isNaN(m)) total += m;
+      });
+      if (summary) {
+        summary.textContent = count ? "共 " + count + " 项" + (total ? "，约 " + total + " 分钟" : "") : "尚未填写治疗项目";
+      }
+      if (list.indexOf(active) < 0) active = list[0] || null;
+      list.forEach(function (row) { row.classList.toggle("active", row === active); });
+      if (!active) return;
+      var name = field(active, "therapy").value.trim();
+      targetLabel.textContent = "第 " + (list.indexOf(active) + 1) + " 行" + (name ? "（" + name + "）" : "");
+      var site = field(active, "site");
+      chips.forEach(function (chip) {
+        chip.classList.toggle("on", segments(site.value).indexOf(chip.textContent) >= 0);
+      });
+    }
+
+    tbody.addEventListener("focusin", function (e) {
+      var row = e.target.closest("tr");
+      if (row && row !== active) { active = row; refresh(); }
+    });
+
+    root.addEventListener("input", function (e) {
+      var row = e.target.closest("tr");
+      // 选好项目后自动填入默认时长；时长是自动填的才跟着项目改
+      if (row && e.target.name === "item_therapy") {
+        var box = field(row, "minutes");
+        var preset = minutes[e.target.value.trim()];
+        if (preset && (!box.value || box.value === row.dataset.autoMinutes)) {
+          box.value = preset;
+          row.dataset.autoMinutes = String(preset);
+        }
+      }
+      refresh();
+    });
+
+    root.querySelector("[data-item-add]").addEventListener("click", function () {
+      active = addRow(true);
+      refresh();
+    });
+
+    tbody.addEventListener("click", function (e) {
+      if (!e.target.closest("[data-item-remove]")) return;
+      e.target.closest("tr").remove();
+      if (!rows().length) addRow();
+      refresh();
+      if (form) form.dispatchEvent(new Event("input"));
+    });
+
+    chips.forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        if (!active) active = rows()[0] || addRow();
+        toggleText(field(active, "site"), chip.textContent, "、");
+      });
+    });
+
+    // 回车跳到下一格，最后一格跳到下一行（没有则新增），避免误提交表单
+    tbody.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" || e.isComposing || !e.target.name) return;
+      e.preventDefault();
+      var row = e.target.closest("tr");
+      var i = ORDER.indexOf(e.target.name.replace("item_", ""));
+      if (i >= 0 && i < ORDER.length - 1) { field(row, ORDER[i + 1]).focus(); return; }
+      var next = row.nextElementSibling || addRow();
+      field(next, "therapy").focus();
+      refresh();
+    });
+
+    if (!rows().length) addRow();
+    refresh();
+  }
+
+  document.querySelectorAll("[data-item-editor]").forEach(initItemEditor);
+
+  /* ---------- 疼痛评分变化图：悬停显示该次评分 ---------- */
+  document.querySelectorAll("[data-pain-chart]").forEach(function (fig) {
+    var svg = fig.querySelector("svg");
+    var tip = fig.querySelector("[data-chart-tip]");
+    var cross = fig.querySelector("[data-crosshair]");
+    var points = JSON.parse(fig.querySelector("[data-chart-points]").textContent);
+    var width = svg.viewBox.baseVal.width;
+    var SERIES = [["before", "治疗前"], ["after", "治疗后"]];
+
+    function hide() {
+      tip.hidden = true;
+      cross.setAttribute("visibility", "hidden");
+    }
+
+    fig.querySelectorAll("rect.hit").forEach(function (rect) {
+      rect.addEventListener("mouseenter", function () {
+        var p = points[parseInt(rect.dataset.i, 10)];
+        var x = parseFloat(rect.dataset.x);
+        cross.setAttribute("x1", x);
+        cross.setAttribute("x2", x);
+        cross.setAttribute("visibility", "visible");
+        tip.textContent = "";
+        var head = document.createElement("div");
+        head.className = "tip-head";
+        head.textContent = p.label + (p.date ? " · " + p.date : "");
+        tip.appendChild(head);
+        SERIES.forEach(function (s) {
+          if (p[s[0]] === null || p[s[0]] === undefined) return;
+          var line = document.createElement("div");
+          var key = document.createElement("i");
+          key.className = "key key-" + s[0];
+          line.appendChild(key);
+          line.appendChild(document.createTextNode(s[1] + "　" + p[s[0]]));
+          tip.appendChild(line);
+        });
+        tip.hidden = false;
+        var px = x / width * svg.clientWidth;
+        var right = px > svg.clientWidth / 2;
+        tip.style.left = right ? "" : (px + 12) + "px";
+        tip.style.right = right ? (svg.clientWidth - px + 12) + "px" : "";
+      });
+    });
+    svg.addEventListener("mouseleave", hide);
+  });
 
   /* ---------- 打印页 ---------- */
   var printBtn = document.querySelector("[data-print]");

@@ -9,8 +9,9 @@ from werkzeug.security import generate_password_hash
 
 from .fields import VISIT_TEXT_FIELDS
 from .herbs import SEED_FORMULAS
+from .therapy_data import SEED_THERAPY_TYPES
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # 2：新增理疗康复（therapy_*）各表
 
 DEFAULT_SETTINGS = {
     "clinic_name": "王艳霞中医门诊",
@@ -61,6 +62,9 @@ def init_db():
     if get_setting("formulas_seeded") != "1":
         _seed_formulas(conn)
         set_setting("formulas_seeded", "1")
+    if get_setting("therapy_types_seeded") != "1":
+        _seed_therapy_types(conn)
+        set_setting("therapy_types_seeded", "1")
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     conn.commit()
 
@@ -106,6 +110,15 @@ def _seed_formulas(conn):
             [(cur.lastrowid, i, herb, dose, unit)
              for i, (herb, dose, unit) in enumerate(formula["items"])],
         )
+
+
+def _seed_therapy_types(conn):
+    conn.executemany(
+        "INSERT OR IGNORE INTO therapy_types (name, category, minutes, notes, position)"
+        " VALUES (?, ?, ?, ?, ?)",
+        [(name, category, minutes, notes, i)
+         for i, (name, category, minutes, notes) in enumerate(SEED_THERAPY_TYPES)],
+    )
 
 
 def get_setting(key, default=""):

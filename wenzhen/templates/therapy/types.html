@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}理疗项目{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>理疗项目</h1>
+    <div class="sub">录入治疗时可从这里选择项目，并自动填入默认时长；参考价格用于预填收费</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('therapy.index') }}">返回理疗康复</a>
+    <a class="btn btn-primary" href="{{ url_for('therapy.edit_type') }}">＋ 新增项目</a>
+  </div>
+</div>
+
+<section class="card">
+  {% if types %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>项目</th><th>类别</th><th class="num">默认时长</th><th class="num">参考价格</th><th>操作要点与禁忌</th><th class="num">已使用</th><th></th></tr></thead>
+        <tbody>
+          {% for t in types %}
+            <tr{% if not t.active %} class="muted"{% endif %}>
+              <td class="nowrap">{{ t.name }}{% if not t.active %} <span class="badge">已停用</span>{% endif %}</td>
+              <td>{{ t.category }}</td>
+              <td class="num">{{ (t.minutes ~ ' 分钟') if t.minutes else '—' }}</td>
+              <td class="num">{{ ('¥' ~ t.price|money) if t.price else '—' }}</td>
+              <td class="small">{{ t.notes }}</td>
+              <td class="num">{{ used.get(t.name, 0) }} 次</td>
+              <td class="nowrap">
+                <a class="btn btn-sm" href="{{ url_for('therapy.edit_type', type_id=t.id) }}">编辑</a>
+                <form class="inline" method="post" action="{{ url_for('therapy.delete_type', type_id=t.id) }}"
+                      data-confirm="确定删除理疗项目「{{ t.name }}」吗？以往的治疗记录不受影响。">
+                  {{ csrf() }}
+                  <button class="btn btn-sm btn-danger" type="submit">删除</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty">还没有理疗项目。<a href="{{ url_for('therapy.edit_type') }}">新增项目</a></div>
+  {% endif %}
+</section>
+{% endblock %}

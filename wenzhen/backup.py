@@ -102,12 +102,46 @@ FORMULA_ITEM_COLUMNS = (
 )
 _PRESCRIPTION_KEYS = ("formula_name", "dose_count", "usage")
 
+THERAPY_TYPE_COLUMNS = (
+    ("id", "项目ID"), ("name", "项目名称"), ("category", "类别"), ("minutes", "默认时长（分钟）"),
+    ("price", "参考价格（元）"), ("notes", "操作要点与禁忌"), ("active", "启用（1是0否）"),
+)
+COURSE_COLUMNS = (
+    ("id", "疗程ID"), ("patient_id", "患者ID"), ("visit_id", "就诊ID"), ("start_date", "开始日期"),
+    ("status", "状态"), ("end_date", "结束日期"), ("diagnosis", "诊断"), ("body_part", "治疗部位"),
+    ("goal", "康复目标"), ("planned_sessions", "计划次数"), ("frequency", "频次"),
+    ("initial_pain", "治疗前疼痛评分"), ("initial_assessment", "初次评估"),
+    ("precautions", "注意事项"), ("fee", "疗程收费（元）"), ("final_pain", "结束时疼痛评分"),
+    ("final_assessment", "疗程小结"), ("outcome", "疗效评价"),
+    ("created_at", "记录时间"), ("updated_at", "修改时间"),
+)
+COURSE_ITEM_COLUMNS = (
+    ("course_id", "疗程ID"), ("position", "序号"), ("therapy", "治疗项目"), ("site", "部位/穴位"),
+    ("minutes", "时长（分钟）"), ("note", "手法/参数"),
+)
+SESSION_COLUMNS = (
+    ("id", "治疗ID"), ("course_id", "疗程ID"), ("session_date", "治疗日期"),
+    ("pain_before", "治疗前疼痛评分"), ("pain_after", "治疗后疼痛评分"), ("reaction", "治疗反应"),
+    ("notes", "病情记录"), ("therapist", "治疗者"), ("fee", "收费（元）"),
+    ("created_at", "记录时间"), ("updated_at", "修改时间"),
+)
+SESSION_ITEM_COLUMNS = (
+    ("session_id", "治疗ID"), ("position", "序号"), ("therapy", "治疗项目"), ("site", "部位/穴位"),
+    ("minutes", "时长（分钟）"), ("note", "手法/参数"),
+)
+_THERAPY_ITEM_KEYS = ("therapy", "site", "minutes", "note")
+
 CSV_TABLES = (
     ("csv/patients.csv", "患者档案", PATIENT_COLUMNS),
     ("csv/visits.csv", "就诊记录（门诊病历）", VISIT_COLUMNS),
     ("csv/prescription_items.csv", "处方明细，按“就诊ID”对应就诊记录", ITEM_COLUMNS),
     ("csv/formulas.csv", "方剂库", FORMULA_COLUMNS),
     ("csv/formula_items.csv", "方剂组成，按“方剂ID”对应方剂", FORMULA_ITEM_COLUMNS),
+    ("csv/therapy_courses.csv", "理疗疗程，按“患者ID”对应患者", COURSE_COLUMNS),
+    ("csv/therapy_course_items.csv", "疗程方案的治疗项目，按“疗程ID”对应", COURSE_ITEM_COLUMNS),
+    ("csv/therapy_sessions.csv", "每次理疗的记录，按“疗程ID”对应疗程", SESSION_COLUMNS),
+    ("csv/therapy_session_items.csv", "每次理疗的项目明细，按“治疗ID”对应", SESSION_ITEM_COLUMNS),
+    ("csv/therapy_types.csv", "理疗项目", THERAPY_TYPE_COLUMNS),
 )
 
 
@@ -179,9 +213,17 @@ def snapshot_database(target_path):
         target.close()
 
 
+COUNT_TABLES = ("patients", "visits", "prescription_items", "formulas",
+                "therapy_courses", "therapy_sessions")
+
+
 def _counts(conn):
-    tables = ("patients", "visits", "prescription_items", "formulas")
-    return {table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for table in tables}
+    """各类记录数；旧版本的数据库没有的表记为 0。"""
+    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    return {
+        table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] if table in tables else 0
+        for table in COUNT_TABLES
+    }
 
 
 # ---------------------------------------------------------------- 生成备份包
@@ -243,6 +285,13 @@ def _write_exports(conn, folder, created, version):
             "SELECT * FROM prescription_items ORDER BY visit_id, position, id",
         "csv/formulas.csv": "SELECT * FROM formulas ORDER BY id",
         "csv/formula_items.csv": "SELECT * FROM formula_items ORDER BY formula_id, position, id",
+        "csv/therapy_courses.csv": "SELECT * FROM therapy_courses ORDER BY id",
+        "csv/therapy_course_items.csv":
+            "SELECT * FROM therapy_course_items ORDER BY course_id, position, id",
+        "csv/therapy_sessions.csv": "SELECT * FROM therapy_sessions ORDER BY id",
+        "csv/therapy_session_items.csv":
+            "SELECT * FROM therapy_session_items ORDER BY session_id, position, id",
+        "csv/therapy_types.csv": "SELECT * FROM therapy_types ORDER BY position, id",
     }
     for name, _, columns in CSV_TABLES:
         path = os.path.join(folder, name)
@@ -286,6 +335,10 @@ def _write_json(conn, folder, created, version):
             "visit": dict(VISIT_COLUMNS),
             "prescription_item": dict(ITEM_COLUMNS),
             "formula": dict(FORMULA_COLUMNS),
+            "therapy_course": dict(COURSE_COLUMNS),
+            "therapy_item": dict(COURSE_ITEM_COLUMNS[2:]),
+            "therapy_session": dict(SESSION_COLUMNS),
+            "therapy_type": dict(THERAPY_TYPE_COLUMNS),
         },
     }
     visit_skip = ("patient_id",) + _PRESCRIPTION_KEYS
@@ -318,6 +371,7 @@ def _write_json(conn, folder, created, version):
             record = {"id": patient["id"], "record_no": f"{patient['id']:06d}"}
             record.update(_pick(patient, PATIENT_COLUMNS, skip=("id",)))
             record["visits"] = visits
+            record["therapy_courses"] = _therapy_courses(conn, patient["id"])
             f.write(("" if index == 0 else ",\n") + json.dumps(record, ensure_ascii=False))
 
         f.write('\n],\n"formulas": [\n')
@@ -332,8 +386,46 @@ def _write_json(conn, folder, created, version):
             record = _pick(formula, FORMULA_COLUMNS)
             record["items"] = formula_items.get(formula["id"], [])
             f.write(("" if index == 0 else ",\n") + json.dumps(record, ensure_ascii=False))
-        f.write("\n]\n}\n")
+        types = [_pick(row, THERAPY_TYPE_COLUMNS)
+                 for row in conn.execute("SELECT * FROM therapy_types ORDER BY position, id")]
+        f.write("\n],\n" + json.dumps("therapy_types") + ": "
+                + json.dumps(types, ensure_ascii=False) + "\n}\n")
     return path
+
+
+def _therapy_items(conn, table, fk, ids):
+    grouped = {i: [] for i in ids}
+    if ids:
+        for row in conn.execute(
+            f"SELECT {fk} AS owner, therapy, site, minutes, note FROM {table}"
+            f" WHERE {fk} IN ({','.join('?' * len(ids))}) ORDER BY {fk}, position, id", ids,
+        ):
+            grouped[row["owner"]].append({key: row[key] for key in _THERAPY_ITEM_KEYS})
+    return grouped
+
+
+def _therapy_courses(conn, patient_id):
+    """某位患者的理疗疗程：疗程 → 方案 plan ＋ 每次治疗 sessions（含项目明细 items）。"""
+    courses = conn.execute(
+        "SELECT * FROM therapy_courses WHERE patient_id = ? ORDER BY start_date, id", (patient_id,)
+    ).fetchall()
+    ids = [c["id"] for c in courses]
+    plans = _therapy_items(conn, "therapy_course_items", "course_id", ids)
+    result = []
+    for course in courses:
+        sessions = conn.execute(
+            "SELECT * FROM therapy_sessions WHERE course_id = ? ORDER BY session_date, id",
+            (course["id"],),
+        ).fetchall()
+        items = _therapy_items(conn, "therapy_session_items", "session_id", [s["id"] for s in sessions])
+        record = _pick(course, COURSE_COLUMNS, skip=("patient_id",))
+        record["plan"] = plans[course["id"]]
+        record["sessions"] = [
+            dict(_pick(s, SESSION_COLUMNS, skip=("course_id",)), items=items[s["id"]])
+            for s in sessions
+        ]
+        result.append(record)
+    return result
 
 
 def _write_readme(folder, manifest, full):
@@ -344,27 +436,30 @@ def _write_readme(folder, manifest, full):
         f"备份时间：{manifest['created_at'].replace('T', ' ')}",
         f"软件版本：{manifest['app_version']}（数据格式 {manifest['schema_version']}）",
         f"记录数：患者 {counts['patients']} 人，就诊记录 {counts['visits']} 条，"
-        f"处方药物 {counts['prescription_items']} 条，方剂 {counts['formulas']} 首",
+        f"处方药物 {counts['prescription_items']} 条，方剂 {counts['formulas']} 首，"
+        f"理疗疗程 {counts.get('therapy_courses', 0)} 个、治疗 {counts.get('therapy_sessions', 0)} 次",
         "",
         "【如何恢复】",
         "在本软件中选择「文件 → 从备份恢复…」（或「设置 → 数据备份与恢复」），选择本 .zip 文件即可。",
         "不需要解压。恢复前，软件会先把当前数据自动另存一份。",
         "",
         "【文件说明】",
-        f"{'manifest.json':<28}备份信息与每个文件的 SHA-256 校验值（恢复时自动核对）",
-        f"{DB_FILE:<28}完整数据库（SQLite 3 格式），包含全部数据和登录账户",
+        f"{'manifest.json':<32}备份信息与每个文件的 SHA-256 校验值（恢复时自动核对）",
+        f"{DB_FILE:<32}完整数据库（SQLite 3 格式），包含全部数据和登录账户",
     ]
     if full:
-        lines.append(f"{'data.json':<28}全部数据的结构化 JSON（UTF-8），便于导入其他系统")
+        lines.append(f"{'data.json':<32}全部数据的结构化 JSON（UTF-8），便于导入其他系统")
         for name, title, _ in CSV_TABLES:
-            lines.append(f"{name:<28}{title}")
+            lines.append(f"{name:<32}{title}")
         lines += [
             "",
             "【迁移到其他系统】",
             "· 用 Excel 查看：直接打开 csv 文件夹中的文件（UTF-8 编码，第一行为中文列名）。",
             "· 导入其他系统：各表用 ID 关联——就诊记录的“患者ID”对应患者档案的“患者ID”，",
-            "  处方明细的“就诊ID”对应就诊记录的“就诊ID”，方剂组成的“方剂ID”对应方剂。",
-            "· data.json 按“患者 → 就诊记录 → 处方”嵌套，field_labels 中列出每个字段的中文含义。",
+            "  处方明细的“就诊ID”对应就诊记录的“就诊ID”，方剂组成的“方剂ID”对应方剂；",
+            "  理疗疗程的“患者ID”对应患者，每次治疗的“疗程ID”对应疗程，项目明细的“治疗ID”对应每次治疗。",
+            "· data.json 按“患者 → 就诊记录 → 处方”“患者 → 理疗疗程 → 每次治疗”嵌套，",
+            "  field_labels 中列出每个字段的中文含义。疼痛评分为 0–10 分（VAS），空表示未评。",
             "· 日期格式为 年-月-日（如 2026-09-28），剂量单位默认为克（g）。",
             "· 为保护账户安全，登录账户和密码只保存在 wenzhen.sqlite3 中（密码为加密后的摘要）。",
         ]
@@ -432,10 +527,8 @@ def check_database(path):
             raise ValueError("该文件不是本系统的数据备份。")
         if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
             raise ValueError("备份文件已损坏。")
-        return {
-            "patients": conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0],
-            "visits": conn.execute("SELECT COUNT(*) FROM visits").fetchone()[0],
-        }
+        counts = _counts(conn)
+        return {key: counts[key] for key in ("patients", "visits", "therapy_sessions")}
     except sqlite3.DatabaseError as exc:
         raise ValueError("该文件不是有效的数据库文件。") from exc
     finally:

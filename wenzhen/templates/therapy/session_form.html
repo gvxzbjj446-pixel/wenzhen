@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% from "_macros.html" import errors_box, csrf, patient_summary %}
+{% from "therapy/_macros.html" import item_editor, pain_scale %}
+{% block title %}{{ '编辑治疗记录' if editing else '记录治疗' }} · {{ patient.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ '编辑' if editing }}第 {{ no }} 次治疗<span class="muted" style="font-weight:400"> / 计划 {{ course.planned_sessions }} 次</span></h1>
+    <div class="sub">{{ course.diagnosis or course.body_part or '理疗疗程' }} · {{ course.start_date }} 开始</div>
+  </div>
+</div>
+
+<div class="card">{{ patient_summary(patient) }}</div>
+
+{% if not editing and no > course.planned_sessions %}
+  <div class="flashes"><div class="alert alert-warning">本疗程计划的 {{ course.planned_sessions }} 次已经做完，这是第 {{ no }} 次。如需继续，可在疗程中调整计划次数。</div></div>
+{% endif %}
+
+<div class="layout-aside">
+  <form class="card" method="post" data-dirty-guard>
+    {{ csrf() }}
+    {{ errors_box(errors) }}
+
+    <div class="form-section">
+      <div class="form-grid">
+        <div class="field">
+          <label for="session_date" class="required">治疗日期</label>
+          <input type="date" id="session_date" name="session_date" value="{{ session.session_date }}" required>
+        </div>
+        <div class="field">
+          <label for="therapist">治疗者</label>
+          <input type="text" id="therapist" name="therapist" value="{{ session.therapist }}" autocomplete="off">
+        </div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <h2>治疗项目</h2>
+      {% if not editing %}<p class="muted small" style="margin-bottom:10px">已按{{ '上次治疗' if last else '疗程方案' }}填好，有变化直接修改。</p>{% endif %}
+      {{ item_editor(items, therapy_types, type_minutes, site_groups, techniques) }}
+    </div>
+
+    <div class="form-section">
+      <h2>疼痛评分与反应</h2>
+      <div class="form-grid">
+        {{ pain_scale('pain_before', session.pain_before, pain_levels, '治疗前疼痛') }}
+        {{ pain_scale('pain_after', session.pain_after, pain_levels, '治疗后疼痛') }}
+        <div class="field wide">
+          <label for="s-reaction">治疗反应</label>
+          <input type="text" id="s-reaction" name="reaction" value="{{ session.reaction }}" autocomplete="off">
+          <div class="chips">{% for r in reactions %}<button type="button" class="chip" data-target="s-reaction" data-joiner="，">{{ r }}</button>{% endfor %}</div>
+        </div>
+        <div class="field wide">
+          <label for="notes">病情记录</label>
+          <textarea id="notes" name="notes" rows="3" placeholder="症状变化、体征、方案调整等">{{ session.notes }}</textarea>
+        </div>
+        <div class="field">
+          <label for="fee">本次收费（元）</label>
+          <input type="text" id="fee" name="fee" inputmode="decimal" value="{{ session.fee }}" autocomplete="off">
+          {% if course.fee %}<div class="hint">本疗程已预收 ¥{{ course.fee|money }}，一般不再单独收费</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">保存</button>
+      <a class="btn" href="{{ url_for('therapy.course_detail', course_id=course.id) }}">取消</a>
+    </div>
+  </form>
+
+  <aside class="aside-sticky">
+    <section class="card">
+      <h2>疗程</h2>
+      <dl class="kv small">
+        <dt>诊断</dt><dd>{{ course.diagnosis or '—' }}</dd>
+        <dt>部位</dt><dd>{{ course.body_part or '—' }}</dd>
+        <dt>进度</dt><dd>已做 {{ sessions|length }} 次，计划 {{ course.planned_sessions }} 次</dd>
+        {% if course.initial_pain is not none %}<dt>初评疼痛</dt><dd>{{ course.initial_pain }}</dd>{% endif %}
+      </dl>
+      {% if course.precautions %}<div class="warn-box small">注意：{{ course.precautions }}</div>{% endif %}
+    </section>
+    {% if last %}
+      <section class="card">
+        <div class="card-head">
+          <h2>上次治疗</h2>
+          <span class="muted small">{{ last.session_date }}</span>
+        </div>
+        <dl class="kv small">
+          <dt>项目</dt><dd>{{ last['items']|therapy_text('\n') }}</dd>
+          <dt>疼痛</dt><dd>{{ last.pain_before|pain }} → {{ last.pain_after|pain }}</dd>
+          {% if last.reaction %}<dt>反应</dt><dd>{{ last.reaction }}</dd>{% endif %}
+          {% if last.notes %}<dt>记录</dt><dd>{{ last.notes }}</dd>{% endif %}
+        </dl>
+      </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

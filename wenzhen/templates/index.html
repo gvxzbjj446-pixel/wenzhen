@@ -49,6 +49,11 @@
     <div class="note">本月新建 {{ kpis.month_new_patients }} 人</div>
   </div>
   <div class="kpi">
+    <div class="label">今日理疗</div>
+    <div class="value">{{ therapy.today|length }}<small>人次</small></div>
+    <div class="note">进行中疗程 {{ therapy.active }} 个</div>
+  </div>
+  <div class="kpi">
     <div class="label">今日应复诊</div>
     <div class="value">{{ due_today|length }}<small>人</small></div>
     <div class="note">{% if overdue %}另有 {{ overdue|length }} 人逾期未来{% else %}无逾期{% endif %}</div>
@@ -117,6 +122,30 @@
           </li>
         {% endfor %}
       </ul>
+    </section>
+    <section class="card">
+      <div class="card-head">
+        <h2>理疗康复</h2>
+        <a class="small" href="{{ url_for('therapy.index') }}">全部 →</a>
+      </div>
+      {% if therapy.today %}
+        <p class="small">今日已治疗 {{ therapy.today|length }} 人次：{% for s in therapy.today[:6] %}{{ s.name }}{{ '、' if not loop.last }}{% endfor %}{% if therapy.today|length > 6 %} 等{% endif %}</p>
+      {% endif %}
+      {% if therapy.stalled %}
+        <ul class="list">
+          {% for c in therapy.stalled[:5] %}
+            <li>
+              <div class="main"><a href="{{ url_for('therapy.course_detail', course_id=c.id) }}">{{ c.name }}</a>
+                <div class="meta">{{ c.phone or '无电话' }} · {{ c.diagnosis or c.body_part or '理疗疗程' }} · {{ c.done }}/{{ c.planned_sessions }} 次</div></div>
+              <span class="badge badge-warning">{{ c.idle_days }} 天未来</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% elif not therapy.today %}
+        <div class="empty">{% if therapy.active %}{{ therapy.active }} 个疗程进行中，今天还没有治疗记录。{% else %}没有进行中的理疗疗程。{% endif %}</div>
+      {% else %}
+        <p class="muted small">{{ therapy.active }} 个疗程进行中，没有中断未来的患者。</p>
+      {% endif %}
     </section>
   </aside>
 </div>

@@ -19,6 +19,7 @@
       <a href="{{ url_for('patients.index') }}" class="{{ 'active' if ep.startswith('patients.') or ep in ('visits.new', 'visits.edit', 'visits.detail') }}">患者</a>
       <a href="{{ url_for('visits.index') }}" class="{{ 'active' if ep == 'visits.index' }}">就诊记录</a>
       <a href="{{ url_for('visits.followups') }}" class="{{ 'active' if ep == 'visits.followups' }}">复诊提醒</a>
+      <a href="{{ url_for('therapy.index') }}" class="{{ 'active' if ep.startswith('therapy.') }}">理疗康复</a>
       <a href="{{ url_for('formulas.index') }}" class="{{ 'active' if ep.startswith('formulas.') }}">方剂库</a>
       <a href="{{ url_for('main.stats') }}" class="{{ 'active' if ep == 'main.stats' }}">统计</a>
       <a href="{{ url_for('main.settings') }}" class="{{ 'active' if ep in ('main.settings', 'main.account') }}">设置</a>

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>理疗治疗单 · {{ patient.name }} · {{ course.start_date }}</title>
+  <style>
+    @page { size: A4 portrait; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e9e6e0; color: #111; font-size: 10.5pt; line-height: 1.6;
+           font-family: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", "Source Han Serif SC", serif; }
+    .toolbar { display: flex; gap: 8px; justify-content: center; padding: 12px;
+               font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    .toolbar button, .toolbar a { padding: 8px 18px; border: 1px solid #bbb; border-radius: 6px; background: #fff;
+                                  color: #222; font-size: 14px; text-decoration: none; cursor: pointer; }
+    .toolbar .primary { background: #2f6b5b; border-color: #2f6b5b; color: #fff; }
+    .sheet { width: 210mm; min-height: 297mm; margin: 0 auto 24px; padding: 12mm; background: #fff;
+             box-shadow: 0 2px 10px rgba(0,0,0,.15); }
+    header { text-align: center; padding-bottom: 2mm; border-bottom: 2px solid #111; }
+    h1 { margin: 0; font-size: 17pt; letter-spacing: 2px; }
+    .kind { font-size: 13pt; letter-spacing: 6px; }
+    .info { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1mm 4mm; padding: 2.5mm 0;
+            border-bottom: 1px solid #111; }
+    .info .span2 { grid-column: span 2; }
+    .info .full { grid-column: 1 / -1; }
+    .label { color: #444; }
+    h2 { font-size: 11.5pt; margin: 4mm 0 1.5mm; }
+    dl { display: grid; grid-template-columns: 6em 1fr; gap: 0.5mm 3mm; margin: 0; }
+    dt { color: #444; }
+    dd { margin: 0; white-space: pre-wrap; }
+    table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+    th, td { border: 1px solid #333; padding: 1.2mm 1.5mm; text-align: left; vertical-align: top; }
+    th { font-weight: 600; background: #f3f3f3; white-space: nowrap; }
+    td.c { text-align: center; white-space: nowrap; }
+    tr.blank td { height: 9mm; }
+    .sign { display: flex; justify-content: flex-end; gap: 12mm; margin-top: 8mm; }
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none; }
+      .sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+      th { background: none; }
+      tr { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="primary" type="button" data-print>打印</button>
+    <a href="{{ url_for('therapy.course_detail', course_id=course.id) }}">返回疗程</a>
+  </div>
+
+  <div class="sheet">
+    <header>
+      <h1>{{ clinic.clinic_name }}</h1>
+      <div class="kind">理疗治疗单</div>
+    </header>
+
+    <div class="info">
+      <div><span class="label">姓名：</span>{{ patient.name }}</div>
+      <div><span class="label">性别：</span>{{ patient.gender }}</div>
+      <div><span class="label">年龄：</span>{{ age_text(patient.birth_date, course.start_date) }}</div>
+      <div><span class="label">病历号：</span>{{ patient.id|record_no }}</div>
+      <div class="span2"><span class="label">电话：</span>{{ patient.phone }}</div>
+      <div class="span2"><span class="label">过敏史：</span>{{ patient.allergies or '否认' }}</div>
+      <div class="full"><span class="label">诊断：</span>{{ course.diagnosis }}</div>
+      <div class="span2"><span class="label">治疗部位：</span>{{ course.body_part }}</div>
+      <div class="span2"><span class="label">疗程：</span>{{ course.start_date }} 起，计划 {{ course.planned_sessions }} 次{% if course.frequency %}，{{ course.frequency }}{% endif %}</div>
+    </div>
+
+    {% if plan or course.goal or course.initial_assessment or course.initial_pain is not none %}
+      <h2>评估与方案</h2>
+      <dl>
+        {% if course.initial_pain is not none %}<dt>治疗前疼痛</dt><dd>{{ course.initial_pain }} 分（VAS 0–10）</dd>{% endif %}
+        {% if course.initial_assessment %}<dt>症状体征</dt><dd>{{ course.initial_assessment }}</dd>{% endif %}
+        {% if course.goal %}<dt>康复目标</dt><dd>{{ course.goal }}</dd>{% endif %}
+        {% if plan %}<dt>治疗方案</dt><dd>{{ plan|therapy_text('\n') }}</dd>{% endif %}
+        {% if course.precautions %}<dt>注意事项</dt><dd>{{ course.precautions }}</dd>{% endif %}
+      </dl>
+    {% endif %}
+
+    <h2>治疗记录</h2>
+    <table>
+      <thead>
+        <tr><th>次</th><th>日期</th><th>治疗项目、部位 / 穴位</th><th>疼痛 前→后</th><th>反应与记录</th><th>治疗者</th><th>患者签字</th></tr>
+      </thead>
+      <tbody>
+        {% for s in sessions %}
+          <tr>
+            <td class="c">{{ s.no }}</td>
+            <td class="c">{{ s.session_date[5:] }}</td>
+            <td>{{ s['items']|therapy_text }}</td>
+            <td class="c">{{ s.pain_before|pain }} → {{ s.pain_after|pain }}</td>
+            <td>{{ s.reaction }}{% if s.reaction and s.notes %}；{% endif %}{{ s.notes }}</td>
+            <td class="c">{{ s.therapist }}</td>
+            <td></td>
+          </tr>
+        {% endfor %}
+        {% for i in range(blank_rows) %}
+          <tr class="blank"><td class="c">{{ sessions|length + i + 1 }}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if course.status != '进行中' %}
+      <h2>疗程小结</h2>
+      <dl>
+        <dt>结束日期</dt><dd>{{ course.end_date }}（{{ course.status }}）</dd>
+        <dt>疗效评价</dt><dd>{{ course.outcome or '未评' }}</dd>
+        {% if course.final_pain is not none %}<dt>结束时疼痛</dt><dd>{{ course.final_pain }} 分</dd>{% endif %}
+        {% if course.final_assessment %}<dt>小结</dt><dd>{{ course.final_assessment }}</dd>{% endif %}
+      </dl>
+    {% endif %}
+
+    <div class="sign">
+      <span>医师签名：{{ clinic.doctor_name }}</span>
+      <span>日期：{{ course.end_date or today }}</span>
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
