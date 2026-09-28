@@ -61,13 +61,13 @@
       <div><span class="label">年龄：</span>{{ age_text(patient.birth_date, course.start_date) }}</div>
       <div><span class="label">病历号：</span>{{ patient.id|record_no }}</div>
       <div class="span2"><span class="label">电话：</span>{{ patient.phone }}</div>
-      <div class="span2"><span class="label">过敏史：</span>{{ patient.allergies or '否认' }}</div>
+      <div class="span2"><span class="label">过敏史：</span>{{ patient.allergies or '未记录' }}</div>
       <div class="full"><span class="label">诊断：</span>{{ course.diagnosis }}</div>
       <div class="span2"><span class="label">治疗部位：</span>{{ course.body_part }}</div>
       <div class="span2"><span class="label">疗程：</span>{{ course.start_date }} 起，计划 {{ course.planned_sessions }} 次{% if course.frequency %}，{{ course.frequency }}{% endif %}</div>
     </div>
 
-    {% if plan or course.goal or course.initial_assessment or course.initial_pain is not none %}
+    {% if plan or course.goal or course.precautions or course.initial_assessment or course.initial_pain is not none %}
       <h2>评估与方案</h2>
       <dl>
         {% if course.initial_pain is not none %}<dt>治疗前疼痛</dt><dd>{{ course.initial_pain }} 分（VAS 0–10）</dd>{% endif %}
@@ -81,7 +81,7 @@
     <h2>治疗记录</h2>
     <table>
       <thead>
-        <tr><th>次</th><th>日期</th><th>治疗项目、部位 / 穴位</th><th>疼痛 前→后</th><th>反应与记录</th><th>治疗者</th><th>患者签字</th></tr>
+        <tr><th>次</th><th>日期</th><th>治疗项目、部位 / 穴位</th><th>疼痛 前→后</th><th>疗效与反应</th><th>治疗者</th><th>患者签字</th></tr>
       </thead>
       <tbody>
         {% for s in sessions %}

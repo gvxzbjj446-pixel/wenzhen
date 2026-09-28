@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% from "_macros.html" import csrf, patient_summary %}
 {% from "therapy/_macros.html" import pain_chart, progress_bar, status_badge %}
-{% block title %}理疗疗程 · {{ patient.name }}{% endblock %}
+{% block title %}理疗方案 · {{ patient.name }}{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>理疗疗程 {{ status_badge(course.status) }}</h1>
+    <h1>理疗方案 {{ status_badge(course.status) }}</h1>
     <div class="sub">
       {{ course.start_date }} 开始{% if course.end_date %}，{{ course.end_date }} 结束{% endif %}
       {% if course.frequency %} · {{ course.frequency }}{% endif %}
-      {% if visit %} · 来自 <a href="{{ url_for('visits.detail', visit_id=visit.id) }}">{{ visit.visit_date }} 的就诊</a>{% endif %}
+      {% if visit %} · 来自 <a href="{{ url_for('visits.detail', visit_id=visit.id) }}">{{ visit.visit_date }} 的问诊记录</a>{% endif %}
     </div>
   </div>
   <div class="actions">
@@ -19,7 +19,7 @@
     {% else %}
       <a class="btn btn-primary" href="{{ url_for('therapy.new_course', patient_id=patient.id, copy_from=course.id) }}">按此方案再开疗程</a>
     {% endif %}
-    <a class="btn" href="{{ url_for('therapy.edit_course', course_id=course.id) }}">编辑疗程</a>
+    <a class="btn" href="{{ url_for('therapy.edit_course', course_id=course.id) }}">编辑方案</a>
     <a class="btn" href="{{ url_for('therapy.print_course', course_id=course.id) }}">打印治疗单</a>
   </div>
 </div>
@@ -40,7 +40,7 @@
       {% if sessions %}
         <div class="table-wrap">
           <table class="table">
-            <thead><tr><th class="num">次</th><th>日期</th><th>治疗项目</th><th class="num">疼痛 前→后</th><th>反应与记录</th><th class="num">收费</th><th></th></tr></thead>
+            <thead><tr><th class="num">次</th><th>日期</th><th>治疗项目</th><th class="num">疼痛 前→后</th><th>疗效与反应</th><th></th></tr></thead>
             <tbody>
               {% for s in sessions|reverse %}
                 <tr>
@@ -48,8 +48,7 @@
                   <td class="nowrap">{{ s.session_date }}{% if s.therapist %}<div class="muted small">{{ s.therapist }}</div>{% endif %}</td>
                   <td>{{ s['items']|therapy_text }}</td>
                   <td class="num">{{ s.pain_before|pain }} → {{ s.pain_after|pain }}</td>
-                  <td>{{ s.reaction }}{% if s.notes %}<div class="muted small pre">{{ s.notes }}</div>{% endif %}</td>
-                  <td class="num">{{ s.fee|money }}</td>
+                  <td>{% if s.notes %}<div class="pre">{{ s.notes }}</div>{% endif %}{% if s.reaction %}<div class="muted small">反应：{{ s.reaction }}</div>{% endif %}{% if not s.notes and not s.reaction %}<span class="muted">未记录</span>{% endif %}</td>
                   <td class="nowrap">
                     <a class="small" href="{{ url_for('therapy.edit_session', session_id=s.id) }}">编辑</a>
                     <form class="inline" method="post" action="{{ url_for('therapy.delete_session', session_id=s.id) }}"
@@ -63,7 +62,11 @@
             </tbody>
           </table>
         </div>
-        <p class="muted small" style="margin-top:8px">累计收费 ¥{{ total_fee|money }}{% if course.fee %}（含疗程预收 ¥{{ course.fee|money }}）{% endif %}</p>
+        <details class="quick-entry" style="margin-top:12px">
+          <summary>收费明细 · 累计 ¥{{ total_fee|money }}</summary>
+          {% if course.fee %}<p class="muted small">疗程预收 ¥{{ course.fee|money }}</p>{% endif %}
+          <dl class="kv small">{% for s in sessions %}<dt>第 {{ s.no }} 次</dt><dd>{{ s.session_date }} · ¥{{ s.fee|money }}</dd>{% endfor %}</dl>
+        </details>
       {% else %}
         <div class="empty">还没有治疗记录。{% if course.status == '进行中' %}<a href="{{ url_for('therapy.new_session', course_id=course.id) }}">记录第 1 次治疗</a>{% endif %}</div>
       {% endif %}
@@ -92,7 +95,7 @@
 
   <aside>
     <section class="card">
-      <h2>诊断与方案</h2>
+      <h2>方案与目标</h2>
       <dl class="kv">
         <dt>诊断</dt><dd>{{ course.diagnosis or '—' }}</dd>
         <dt>治疗部位</dt><dd>{{ course.body_part or '—' }}</dd>
@@ -100,6 +103,7 @@
         <dt>计划</dt><dd>{{ course.planned_sessions }} 次{% if course.frequency %}，{{ course.frequency }}{% endif %}</dd>
         {% if course.fee %}<dt>疗程收费</dt><dd>¥{{ course.fee|money }}</dd>{% endif %}
       </dl>
+      {% if course.precautions %}<div class="warn-box">注意：{{ course.precautions }}</div>{% endif %}
       {% if plan %}
         <p class="muted small" style="margin:12px 0 6px">治疗方案</p>
         <ul class="plan-list">{% for it in plan %}<li>{{ [it]|therapy_text }}</li>{% endfor %}</ul>
@@ -111,7 +115,6 @@
         <dt>疼痛评分</dt><dd>{{ course.initial_pain|pain }}</dd>
         <dt>症状体征</dt><dd>{{ course.initial_assessment or '—' }}</dd>
       </dl>
-      {% if course.precautions %}<div class="warn-box">注意：{{ course.precautions }}</div>{% endif %}
     </section>
     <form method="post" action="{{ url_for('therapy.delete_course', course_id=course.id) }}"
           data-confirm="确定删除这个疗程及其全部 {{ sessions|length }} 次治疗记录吗？此操作不可恢复。">

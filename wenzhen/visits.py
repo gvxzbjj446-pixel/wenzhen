@@ -118,17 +118,27 @@ def filled_sections(visit):
 
 
 def after_save(visit_id):
+    if request.form.get("after") == "therapy":
+        visit = get_visit(visit_id)
+        return redirect(url_for("therapy.new_course", patient_id=visit["patient_id"], visit_id=visit_id))
+    if request.form.get("after") == "record":
+        return redirect(url_for("visits.print_view", visit_id=visit_id, kind="record"))
     if request.form.get("after") == "print":
         return redirect(url_for("visits.print_view", visit_id=visit_id, kind="prescription"))
     return redirect(url_for("visits.detail", visit_id=visit_id))
 
 
 def render_form(patient, visit, items, errors, last, copied_from=None):
+    # 折叠区仍渲染全部原字段，编辑旧病历时不会清空未展开的内容。
+    primary = tuple(s for s in VISIT_SECTIONS if s[0] in ("主诉与病史", "诊断与治法", "其他治疗与医嘱"))
+    detailed = tuple(s for s in VISIT_SECTIONS if s not in primary)
     return render_template(
         "visits/form.html",
         patient=patient, visit=visit, items=items, errors=errors,
         last=last, last_items=visit_items(last["id"]) if last else [],
         copied_from=copied_from, sections=VISIT_SECTIONS, visit_types=VISIT_TYPES,
+        primary_sections=primary, detailed_sections=detailed,
+        has_details=any(visit[f.key] for _, fields in detailed for f in fields),
         formulas=formula_payload(), herbs=herb_suggestions(), units=UNITS,
         herb_notes=HERB_NOTES, usages=COMMON_USAGES, compat_rules=rules_for_js(),
     )
@@ -178,6 +188,10 @@ def detail(visit_id):
         next_id=ids[pos + 1] if pos + 1 < len(ids) else None,
         conflicts=find_conflicts(item["herb"] for item in items),
         total_grams=total_grams(items),
+        related_courses=get_db().execute(
+            "SELECT id, diagnosis, body_part, status, planned_sessions FROM therapy_courses"
+            " WHERE visit_id = ? ORDER BY start_date DESC, id DESC", (visit_id,)
+        ).fetchall(),
     )
 
 

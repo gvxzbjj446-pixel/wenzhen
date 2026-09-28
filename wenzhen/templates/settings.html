@@ -40,10 +40,18 @@
   </section>
 </div>
 
-<section class="card" id="about" style="margin-top:20px">
+<section class="card" style="margin-top:20px">
+  <h2>常用工具</h2>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('patients.index') }}">患者档案</a>
+    <a class="btn" href="{{ url_for('visits.followups') }}">复诊提醒</a>
+    <a class="btn" href="{{ url_for('formulas.index') }}">方剂库</a>
+  </div>
+</section>
+<section class="card" id="about">
   <h2>关于本软件</h2>
   <dl class="kv">
-    <dt>软件</dt><dd>{{ clinic.clinic_name }} · 问诊记录系统</dd>
+    <dt>软件</dt><dd>{{ clinic.clinic_name }} · 简洁版（基于 1.3.0）</dd>
     <dt>版本</dt><dd>{{ app_version }}{{ '（桌面版）' if desktop }}</dd>
     <dt>数据位置</dt><dd><code class="path">{{ data_folder }}</code>
       {% if desktop %}<button type="button" class="btn btn-sm" data-desktop-action="open-folder" style="margin-left:8px">打开数据文件夹</button>{% endif %}</dd>

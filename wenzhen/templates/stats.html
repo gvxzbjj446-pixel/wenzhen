@@ -1,93 +1,159 @@
 {% extends "base.html" %}
-{% block title %}统计{% endblock %}
+{% block title %}数据分析{% endblock %}
 
 {% macro bar(value, maximum, tip) %}
   {% set pct = (value / maximum * 100) if maximum else 0 %}
-  {# 很小的非零值至少显示 1%，零值不画 #}
   <div class="bar" title="{{ tip }}"><span style="width: {{ ([pct, 1]|max if value > 0 else 0)|round(1) }}%"></span></div>
 {% endmacro %}
 
-{% macro rank_table(title, rows, unit='次') %}
+{% macro rank_table(title, rows) %}
   <section class="card">
     <h2>{{ title }}</h2>
     {% if rows %}
       {% set top = rows|map(attribute='hits')|max %}
-      <table class="table">
-        <tbody>
-          {% for r in rows %}
-            <tr>
-              <td>{{ r.label }}</td>
-              <td class="bar-cell">{{ bar(r.hits, top, r.label ~ '：' ~ r.hits ~ unit) }}</td>
-              <td class="num">{{ r.hits }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <table class="table"><thead><tr><th>名称</th><th>分布</th><th class="num">问诊人次</th></tr></thead><tbody>
+        {% for r in rows %}
+          <tr><td>{{ r.label }}</td><td class="bar-cell">{{ bar(r.hits, top, r.label ~ '：' ~ r.hits ~ ' 次') }}</td><td class="num">{{ r.hits }}</td></tr>
+        {% endfor %}
+      </tbody></table>
     {% else %}
-      <div class="empty">暂无数据</div>
+      <div class="empty">这段时间暂无已填写的数据。</div>
     {% endif %}
+  </section>
+{% endmacro %}
+
+{% macro pain_card(title, pain, unit, scope) %}
+  <section class="card">
+    <h2>{{ title }}</h2>
+    <p class="muted small">{{ scope }}；有效配对 {{ pain.paired }} / {{ pain.total }} {{ unit }}，未形成有效配对 {{ pain.missing }} {{ unit }}。</p>
+    {% if pain.paired %}
+      <p style="margin:16px 0">治疗前 <strong>{{ pain.before|round(1) }}</strong> → 治疗后 <strong>{{ pain.after|round(1) }}</strong> 分</p>
+      <p class="small">平均变化（后－前）：<strong>{{ '%+.1f'|format(pain.change) }}</strong> 分</p>
+    {% else %}
+      <div class="empty">暂无前后均填写的有效疼痛评分。</div>
+    {% endif %}
+    <p class="muted small">0–10 分；负变化表示下降。仅比较同一记录的配对评分，不能据此单独判断治疗效果。</p>
   </section>
 {% endmacro %}
 
 {% block content %}
 <div class="page-head">
-  <div>
-    <h1>统计</h1>
-    <div class="sub">{{ start }} 至 {{ end }}</div>
-  </div>
-  <form class="search-bar" method="get">
-    <div class="field"><label for="start">从</label><input type="date" id="start" name="start" value="{{ start }}"></div>
-    <div class="field"><label for="end">到</label><input type="date" id="end" name="end" value="{{ end }}"></div>
-    <button class="btn btn-primary" type="submit">统计</button>
-  </form>
+  <div><h1>数据分析</h1><div class="sub">{{ start }} 至 {{ end }} · 包含起止日期</div></div>
+  <a class="btn" href="{{ url_for('main.export_stats', start=start, end=end) }}" data-download="问诊理疗汇总.csv">导出当前汇总 CSV</a>
 </div>
+<section class="card">
+  <form class="search-bar" method="get">
+    <div class="field"><label for="start">开始日期</label><input type="date" id="start" name="start" value="{{ start }}"></div>
+    <div class="field"><label for="end">结束日期</label><input type="date" id="end" name="end" value="{{ end }}"></div>
+    <button class="btn btn-primary" type="submit">查看分析</button>
+    <a class="btn btn-ghost" href="{{ url_for('main.stats', start=month_start, end=today) }}">本月</a>
+    <a class="btn btn-ghost" href="{{ url_for('main.stats', start=year_start, end=today) }}">今年</a>
+  </form>
+</section>
 
 <div class="kpis">
-  <div class="kpi"><div class="label">接诊人次</div><div class="value">{{ summary.visits }}</div></div>
-  <div class="kpi"><div class="label">就诊患者</div><div class="value">{{ summary.patients }}<small>人</small></div></div>
-  <div class="kpi"><div class="label">其中初诊</div><div class="value">{{ summary.first_visits }}<small>人次</small></div></div>
-  <div class="kpi"><div class="label">收费合计</div><div class="value">¥{{ summary.revenue|money }}</div></div>
+  <div class="kpi"><div class="label">问诊人次</div><div class="value">{{ summary.visits }}</div><div class="note">初诊 {{ summary.first_visits }} 人次 · 问诊患者 {{ summary.visit_patients }} 人</div></div>
+  <div class="kpi"><div class="label">理疗次数</div><div class="value">{{ summary.sessions }}</div><div class="note">理疗人次按治疗记录计 · {{ summary.therapy_patients }} 位患者</div></div>
+  <div class="kpi"><div class="label">服务患者</div><div class="value">{{ summary.patients }}<small>人</small></div><div class="note">问诊与实际治疗合并去重</div></div>
+  <div class="kpi"><div class="label">登记收费合计</div><div class="value">¥{{ summary.revenue|money }}</div><div class="note">含理疗收费 ¥{{ summary.therapy_fee|money }}</div></div>
 </div>
 
 <section class="card">
-  <h2>按月统计</h2>
+  <div class="card-head"><h2>问诊与理疗趋势</h2><span class="small muted">按月汇总</span></div>
   {% if monthly %}
-    {% set top = monthly|map(attribute='visits')|max %}
+    {% set top = ([monthly|map(attribute='visits')|max, monthly|map(attribute='sessions')|max]|max) %}
     <div class="table-wrap">
       <table class="table">
-        <thead><tr><th>月份</th><th class="bar-cell">接诊人次</th><th class="num">人次</th><th class="num">患者数</th><th class="num">初诊</th><th class="num">收费（元）</th></tr></thead>
+        <thead><tr><th>月份</th><th>问诊人次</th><th>理疗次数</th><th class="num">服务患者</th><th class="num">问诊收费</th><th class="num">单次理疗收费</th><th class="num">疗程预收</th><th class="num">合计（元）</th></tr></thead>
         <tbody>
           {% for m in monthly %}
             <tr>
               <td class="nowrap">{{ m.month }}</td>
-              <td class="bar-cell">{{ bar(m.visits, top, m.month ~ '：' ~ m.visits ~ ' 人次') }}</td>
-              <td class="num">{{ m.visits }}</td>
+              <td>{{ m.visits }}{{ bar(m.visits, top, m.month ~ ' 问诊 ' ~ m.visits ~ ' 人次') }}</td>
+              <td>{{ m.sessions }}{{ bar(m.sessions, top, m.month ~ ' 理疗 ' ~ m.sessions ~ ' 次') }}</td>
               <td class="num">{{ m.patients }}</td>
-              <td class="num">{{ m.first_visits }}</td>
-              <td class="num">{{ m.revenue|money }}</td>
+              <td class="num">{{ m.visit_fee|money }}</td><td class="num">{{ m.session_fee|money }}</td>
+              <td class="num">{{ m.course_fee|money }}</td><td class="num">{{ m.revenue|money }}</td>
             </tr>
           {% endfor %}
         </tbody>
-        <tfoot>
-          <tr><td>合计</td><td></td><td class="num">{{ summary.visits }}</td><td class="num">{{ summary.patients }}</td><td class="num">{{ summary.first_visits }}</td><td class="num">{{ summary.revenue|money }}</td></tr>
-        </tfoot>
+        <tfoot><tr><td>期间合计</td><td>{{ summary.visits }}</td><td>{{ summary.sessions }}</td><td class="num">{{ summary.patients }}</td><td class="num">{{ summary.visit_fee|money }}</td><td class="num">{{ summary.session_fee|money }}</td><td class="num">{{ summary.course_fee|money }}</td><td class="num">{{ summary.revenue|money }}</td></tr></tfoot>
       </table>
     </div>
+    <p class="small muted">只显示有问诊、治疗或新开疗程的月份。服务患者每月去重，期间合计再次去重，不能直接相加。</p>
   {% else %}
-    <div class="empty">这段时间没有就诊记录。</div>
+    <div class="empty">这段时间暂无问诊或理疗记录。录入问诊或保存一次治疗后即可查看分析。</div>
   {% endif %}
+  <p class="small muted">收费按记录日期归属：问诊收费＋单次理疗收费＋疗程预收（开立日计一次）。预收已覆盖的治疗，单次收费应填 0；此处为登记金额汇总。</p>
 </section>
 
 <div class="grid grid-2">
-  {{ rank_table('常见中医诊断', diseases) }}
-  {{ rank_table('常见证型', syndromes) }}
-  {{ rank_table('常用方', formulas) }}
+  <section class="card">
+    <h2>常用理疗项目</h2>
+    <p class="small muted">期内 {{ summary.sessions }} 次治疗；同次同项目分多个部位仍计一次。一条治疗可含多个项目，占比之和可能超过 100%。</p>
+    {% if analysis.types %}
+      <table class="table">
+        <thead><tr><th>项目</th><th>覆盖治疗</th><th class="num">次数 / 占比</th></tr></thead>
+        <tbody>
+          {% for r in analysis.types %}
+            <tr><td>{{ r.label }}</td><td class="bar-cell">{{ bar(r.hits, summary.sessions, r.label ~ '：' ~ r.hits ~ ' 次治疗') }}</td><td class="num nowrap">{{ r.hits }} / {{ (r.hits / summary.sessions * 100)|round(1) }}%</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty">这段时间暂无已记录的理疗项目。</div>
+    {% endif %}
+    <p class="small muted">未记录项目：{{ analysis.without_items }} / {{ summary.sessions }} 次治疗。</p>
+  </section>
 
   <section class="card">
-    <h2>就诊患者构成（{{ patient_count }} 人）</h2>
-    {% if patient_count %}
+    <h2>疗程完成情况</h2>
+    <p>期内新开 <strong>{{ summary.new_courses }}</strong> 个疗程；期内结束 <strong>{{ analysis.courses.ended }}</strong> 个。</p>
+    {% if analysis.courses.ended %}
       <table class="table">
         <tbody>
+          <tr><td>已完成</td><td class="num">{{ analysis.courses.completed }} 个</td></tr>
+          <tr><td>已中止</td><td class="num">{{ analysis.courses.stopped }} 个</td></tr>
+          <tr><td>结束疗程中的完成比例</td><td class="num">{{ analysis.courses.completion_rate|round(1) }}%</td></tr>
+        </tbody>
+      </table>
+      <p class="small muted">完成比例＝{{ analysis.courses.completed }} 个已完成 / {{ analysis.courses.ended }} 个已结束。</p>
+    {% else %}
+      <div class="empty">这段时间暂无结束疗程，完成比例暂不计算。</div>
+    {% endif %}
+    <p class="small muted">新增按开立日期，结束按结束日期和当前完成 / 中止状态计；两者不是同一批疗程。</p>
+  </section>
+</div>
+
+<div class="grid grid-2">
+  {{ pain_card('单次治疗疼痛变化', analysis.session_pain, '次治疗', '按治疗日期纳入') }}
+  {{ pain_card('完成疗程疼痛变化', analysis.course_pain, '个疗程', '按结束日期纳入已完成疗程') }}
+</div>
+
+<details class="card quick-entry">
+  <summary>查看问诊诊断、疗程评价与患者构成</summary>
+  <div class="grid grid-2" style="margin-top:18px">
+    {{ rank_table('常见中医诊断', diseases) }}
+    {{ rank_table('常见证型', syndromes) }}
+    <section class="card">
+      <h2>疗效评价（{{ analysis.courses.completed }} 个疗程）</h2>
+      <p class="small muted">期内完成疗程 {{ analysis.courses.completed }} 个：已评价 {{ analysis.courses.evaluated }} 个，未评价 {{ analysis.courses.unassessed }} 个。</p>
+      {% if analysis.courses.completed %}
+        <table class="table"><thead><tr><th>记录评价</th><th>占完成疗程</th><th class="num">个数</th></tr></thead><tbody>
+          {% for label, n in analysis.courses.outcomes.items() %}
+            <tr><td>{{ label }}</td><td class="bar-cell">{{ bar(n, analysis.courses.completed, label ~ '：' ~ n ~ ' 个疗程') }}</td><td class="num">{{ n }}</td></tr>
+          {% endfor %}
+          <tr><td>未评价</td><td class="bar-cell">{{ bar(analysis.courses.unassessed, analysis.courses.completed, '未填写有效疗效评价') }}</td><td class="num">{{ analysis.courses.unassessed }}</td></tr>
+        </tbody></table>
+      {% else %}
+        <div class="empty">这段时间暂无已完成疗程。</div>
+      {% endif %}
+    </section>
+    <section class="card">
+      <h2>服务患者构成（{{ patient_count }} 人）</h2>
+      <p class="small muted">包括纯理疗患者；年龄按统计截止日计算。</p>
+      {% if patient_count %}
+        <table class="table"><tbody>
           <tr><th class="group" colspan="3">性别</th></tr>
           {% for label, n in genders.items() if n or label != '未填' %}
             <tr><td>{{ label }}</td><td class="bar-cell">{{ bar(n, patient_count, label ~ '：' ~ n ~ ' 人') }}</td><td class="num">{{ n }}</td></tr>
@@ -96,65 +162,33 @@
           {% for label, n in ages.items() if n or label != '未填' %}
             <tr><td class="nowrap">{{ label }}</td><td class="bar-cell">{{ bar(n, patient_count, label ~ '：' ~ n ~ ' 人') }}</td><td class="num">{{ n }}</td></tr>
           {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <div class="empty">暂无数据</div>
-    {% endif %}
-  </section>
-</div>
+        </tbody></table>
+      {% else %}
+        <div class="empty">暂无服务患者。</div>
+      {% endif %}
+    </section>
+  </div>
+</details>
 
-<h2 style="margin:28px 0 12px">理疗康复</h2>
-<div class="kpis">
-  <div class="kpi"><div class="label">理疗人次</div><div class="value">{{ therapy.sessions }}</div></div>
-  <div class="kpi"><div class="label">理疗患者</div><div class="value">{{ therapy.patients }}<small>人</small></div></div>
-  <div class="kpi"><div class="label">新开疗程</div><div class="value">{{ therapy.new_courses }}<small>个</small></div></div>
-  <div class="kpi"><div class="label">理疗收费</div><div class="value">¥{{ therapy.revenue|money }}</div><div class="note">含疗程预收</div></div>
-</div>
-<div class="grid grid-2">
-  {{ rank_table('常用理疗项目', therapy.types) }}
-  <section class="card">
-    <h2>疗效评价（{{ therapy.finished }} 个疗程）</h2>
-    {% if therapy.finished %}
-      {% set top = therapy.outcomes.values()|max %}
-      <table class="table">
-        <tbody>
-          {% for label, n in therapy.outcomes.items() %}
-            <tr><td>{{ label }}</td><td class="bar-cell">{{ bar(n, top, label ~ '：' ~ n ~ ' 个疗程') }}</td><td class="num">{{ n }}</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <div class="empty">这段时间没有结束并评价疗效的疗程。</div>
-    {% endif %}
-    {% if therapy.pain_courses %}
-      <p class="small" style="margin-top:12px">平均疼痛评分：治疗前 <strong>{{ therapy.pain_before|round(1) }}</strong> → 结束时 <strong>{{ therapy.pain_after|round(1) }}</strong>
-        <span class="muted">（{{ therapy.pain_courses }} 个疗程）</span></p>
-    {% endif %}
-  </section>
-</div>
-
-<section class="card" style="margin-top:20px">
+<details class="card quick-entry">
+  <summary>处方用药统计（辅助信息）</summary>
+  <p class="small muted" style="margin-top:12px">按筛选期间的问诊记录统计，保留历史处方分析。</p>
+  {{ rank_table('常用方', formulas) }}
   <h2>常用药物（前 20）</h2>
   {% if herbs %}
     {% set top = herbs|map(attribute='uses')|max %}
     <div class="table-wrap">
       <table class="table">
-        <thead><tr><th>药名</th><th class="bar-cell">使用处方数</th><th class="num">处方数</th><th class="num">平均剂量</th></tr></thead>
+        <thead><tr><th>药名</th><th>使用处方数</th><th class="num">处方数</th><th class="num">平均剂量</th></tr></thead>
         <tbody>
           {% for h in herbs %}
-            <tr>
-              <td>{{ h.herb }}</td>
-              <td class="bar-cell">{{ bar(h.uses, top, h.herb ~ '：' ~ h.uses ~ ' 张处方') }}</td>
-              <td class="num">{{ h.uses }}</td>
-              <td class="num">{% if h.avg_dose is not none %}{{ h.avg_dose|num }} g{% else %}—{% endif %}</td>
-            </tr>
+            <tr><td>{{ h.herb }}</td><td class="bar-cell">{{ bar(h.uses, top, h.herb ~ '：' ~ h.uses ~ ' 张处方') }}</td><td class="num">{{ h.uses }}</td><td class="num">{% if h.avg_dose is not none %}{{ h.avg_dose|num }} g{% else %}—{% endif %}</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   {% else %}
-    <div class="empty">暂无数据</div>
+    <div class="empty">这段时间暂无处方用药记录。</div>
   {% endif %}
-</section>
+</details>
 {% endblock %}

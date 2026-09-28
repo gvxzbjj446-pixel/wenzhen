@@ -1,14 +1,14 @@
 /* 王艳霞中医门诊 · 问诊记录系统 */
 
 :root {
-  --bg: #f5f2eb;
+  --bg: #f4f6f5;
   --surface: #ffffff;
-  --surface-2: #faf8f4;
-  --border: #e3dccf;
+  --surface-2: #f8faf9;
+  --border: #dde5e1;
   --border-strong: #cfc5b4;
   --ink: #2a2521;
   --ink-2: #5a524a;
-  --muted: #8a8177;
+  --muted: #68776f;
   --primary: #2f6b5b;
   --primary-hover: #245346;
   --primary-soft: #e5efeb;
@@ -646,6 +646,36 @@ label.checkbox { display: inline-flex; align-items: center; gap: 8px; font-size:
 .toast-error { background: var(--danger); }
 
 code.path { word-break: break-all; font-size: 13px; }
+
+/* ---------- 简洁版：问诊、理疗、分析 ---------- */
+.edition { font: 11px/1.6 var(--font); color: var(--primary); background: var(--primary-soft); padding: 2px 6px; border-radius: 4px; }
+.workflow-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+.workflow-links a { display: flex; align-items: center; gap: 14px; padding: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--ink); }
+.workflow-links a:hover { text-decoration: none; border-color: var(--primary); }
+.workflow-links a > span:last-child { margin-left: auto; color: var(--primary); }
+.workflow-links strong, .workflow-links small { display: block; }
+.workflow-links small { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.workflow-number { color: var(--primary); font-size: 13px; font-weight: 600; }
+.optional-section > summary { cursor: pointer; font-size: 16px; font-weight: 600; padding: 4px 0; }
+.optional-section > summary .small { font-weight: 400; margin-left: 8px; }
+.optional-section[open] > summary { margin-bottom: 16px; }
+.optional-tools { margin: 12px 0; }
+.consultation-form { min-width: 0; }
+.consultation-actions { position: sticky; bottom: 0; z-index: 2; background: var(--surface); box-shadow: 0 -3px 12px rgba(0, 0, 0, .04); }
+details, .form-section { scroll-margin-top: 80px; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+
+@media (max-width: 1050px) {
+  .topbar { height: auto; min-height: 56px; flex-wrap: wrap; gap: 10px 18px; padding-top: 10px; padding-bottom: 10px; }
+  .nav { order: 3; flex-basis: 100%; }
+  .userbox { margin-left: auto; }
+}
+@media (max-width: 760px) {
+  .workflow-links { grid-template-columns: 1fr; gap: 8px; }
+  .workflow-links a { padding: 12px 16px; }
+  .optional-section > summary .small { display: block; margin-left: 18px; }
+  .consultation-actions { position: static; box-shadow: none; }
+}
 
 /* ---------- 登录页 ---------- */
 

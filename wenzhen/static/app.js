@@ -32,6 +32,21 @@
   }
   window.wenzhenToast = toast;
 
+  // 折叠表单保留全部输入；校验失败时先展开，浏览器才能聚焦到问题字段。
+  document.addEventListener("invalid", function (e) {
+    var section = e.target.closest("details");
+    while (section) {
+      section.open = true;
+      section = section.parentElement.closest("details");
+    }
+  }, true);
+  document.querySelectorAll("[data-open-details]").forEach(function (link) {
+    link.addEventListener("click", function () {
+      var section = document.getElementById(link.dataset.openDetails);
+      if (section) section.open = true;
+    });
+  });
+
   function fail() { toast("操作失败，请重试。", "error"); }
 
   /* ---------- 确认对话框（代替浏览器自带的 confirm 弹窗） ---------- */
@@ -568,6 +583,19 @@
     root.querySelector("[data-item-add]").addEventListener("click", function () {
       active = addRow(true);
       refresh();
+    });
+
+    root.querySelectorAll("[data-therapy-pick]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var blank = rows().filter(function (row) {
+          return ORDER.every(function (name) { return !field(row, name).value.trim(); });
+        })[0];
+        active = blank || addRow();
+        field(active, "therapy").value = button.dataset.therapyPick;
+        refresh();
+        field(active, "site").focus();
+        if (form) form.dispatchEvent(new Event("input", { bubbles: true }));
+      });
     });
 
     tbody.addEventListener("click", function (e) {

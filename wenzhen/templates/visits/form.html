@@ -23,7 +23,7 @@
 <div class="page-head">
   <div>
     <h1>{{ '编辑问诊记录' if editing else '问诊记录' }}</h1>
-    <div class="sub">{{ '修改后点击保存' if editing else '点选常用描述可快速填写，再次点选即取消' }}</div>
+    <div class="sub">记录本次病情与诊断，保存后可直接制定理疗方案。</div>
   </div>
 </div>
 
@@ -34,7 +34,7 @@
 {% endif %}
 
 <div class="layout-aside">
-  <form class="card" method="post" data-dirty-guard>
+  <form class="card consultation-form" method="post" data-dirty-guard>
     {{ csrf() }}
     {{ errors_box(errors) }}
 
@@ -55,17 +55,28 @@
       </div>
     </div>
 
-    {% for title, fields in sections %}
+    {% for title, fields in primary_sections %}
       <div class="form-section">
-        <h2>{{ title }}</h2>
+        <h2>{{ '理疗与医嘱' if title == '其他治疗与医嘱' else title }}</h2>
         <div class="form-grid">
           {% for f in fields %}{{ visit_field(f) }}{% endfor %}
         </div>
       </div>
 
-      {% if title == '诊断与治法' %}
+    {% endfor %}
+
+    <details class="form-section optional-section" id="detailed-exam" {{ 'open' if has_details or errors }}>
+      <summary>详细四诊与检查 <span class="muted small">十问 · 舌脉 · 体格与辅助检查</span></summary>
+      {% for title, fields in detailed_sections %}
         <div class="form-section">
-          <h2>处方</h2>
+          <h2>{{ title }}</h2>
+          <div class="form-grid">{% for f in fields %}{{ visit_field(f) }}{% endfor %}</div>
+        </div>
+      {% endfor %}
+    </details>
+
+    <details class="form-section optional-section" id="prescription" {{ 'open' if items or visit.formula_name or errors }}>
+          <summary>草药处方 <span class="muted small">按需填写</span></summary>
           <div class="form-grid" style="margin-bottom:12px">
             <div class="field">
               <label for="formula_name">方名</label>
@@ -82,12 +93,12 @@
             </div>
           </div>
           {{ herb_editor(items, herbs, units, herb_notes, compat_rules, formulas) }}
-        </div>
-      {% endif %}
-    {% endfor %}
+          <p class="small optional-tools"><a href="{{ url_for('formulas.index') }}">管理方剂库 →</a></p>
+          <button class="btn btn-sm" type="submit" name="after" value="print">保存并打印处方</button>
+    </details>
 
     <div class="form-section">
-      <h2>收费与复诊</h2>
+      <h2>复诊与费用</h2>
       <div class="form-grid">
         <div class="field">
           <label for="fee">收费（元）</label>
@@ -103,9 +114,10 @@
       </div>
     </div>
 
-    <div class="form-actions">
-      <button class="btn btn-primary" type="submit">保存</button>
-      <button class="btn" type="submit" name="after" value="print">保存并打印处方</button>
+    <div class="form-actions consultation-actions">
+      <button class="btn btn-primary" type="submit">保存问诊</button>
+      <button class="btn" type="submit" name="after" value="therapy">保存并制定理疗方案</button>
+      <button class="btn" type="submit" name="after" value="record">保存并打印病历</button>
       <a class="btn" href="{{ url_for('visits.detail', visit_id=visit.id) if editing else url_for('patients.detail', patient_id=patient.id) }}">取消</a>
     </div>
   </form>
@@ -130,11 +142,16 @@
           {{ rx_grid(last_items) }}
         {% endif %}
         {% if not editing and not copied_from %}
-          <p style="margin-top:12px"><a class="btn btn-sm" href="{{ url_for('visits.new', patient_id=patient.id, copy_from=last.id) }}">带入上次诊断与处方</a></p>
+          <p style="margin-top:12px"><a class="btn btn-sm" href="{{ url_for('visits.new', patient_id=patient.id, copy_from=last.id) }}">带入上次问诊</a></p>
         {% endif %}
       {% else %}
         <div class="empty">无既往就诊记录</div>
       {% endif %}
+    </section>
+    <section class="card">
+      <h2>本次记录</h2>
+      <p class="muted small">先填写主诉、病史和诊断。详细四诊与草药处方可按需展开；理疗项目、穴位和疗程安排在方案中记录。</p>
+      <a class="small" href="#detailed-exam" data-open-details="detailed-exam">填写详细四诊 →</a>
     </section>
   </aside>
 </div>

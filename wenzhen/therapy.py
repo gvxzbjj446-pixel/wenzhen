@@ -11,7 +11,7 @@ from flask import (Blueprint, abort, flash, g, redirect, render_template, reques
 
 from .db import ADMIN_USERNAME, get_db, get_settings
 from .records import get_patient, get_visit
-from .therapy_data import (ASSESSMENT_OPTIONS, COURSE_STATUSES, DEFAULT_GAP_DAYS,
+from .therapy_data import (ASSESSMENT_OPTIONS, COMMON_THERAPIES, COURSE_STATUSES, DEFAULT_GAP_DAYS,
                            FREQUENCIES, GAP_DAYS, OUTCOMES, REACTIONS, SITE_GROUPS,
                            TECHNIQUES, THERAPY_CATEGORIES)
 from .utils import escape_like, format_number, paginate, parse_date
@@ -273,8 +273,11 @@ def parse_item_rows(form):
         therapy = raw.strip()[:30]
         site = at(sites, i)[:200]
         if not therapy:
-            if site:
-                errors.append(f"第 {i + 1} 行填写了部位 / 穴位，但没有填写治疗项目。")
+            if site or at(minutes, i) or at(notes, i):
+                errors.append(f"第 {i + 1} 行填写了部位、时长或参数，但没有填写治疗项目。")
+                # 校验失败后仍展示这行，方便补齐名称，不丢失已输入的内容。
+                items.append({"therapy": "", "site": site,
+                              "minutes": at(minutes, i) or None, "note": at(notes, i)[:100]})
             continue
         items.append({
             "therapy": therapy,
@@ -432,10 +435,14 @@ def pain_chart(sessions, course):
 
 
 def _form_context():
-    types = therapy_types(active_only=True)
+    types = sorted(therapy_types(active_only=True),
+                   key=lambda t: COMMON_THERAPIES.index(t["name"])
+                   if t["name"] in COMMON_THERAPIES else len(COMMON_THERAPIES))
     return {
         "therapy_types": types,
-        "type_minutes": {t["name"]: t["minutes"] for t in types if t["minutes"]},
+        "common_therapy_types": [t for t in types if t["name"] in COMMON_THERAPIES],
+        # 录入项目本身不代表已决定治疗时长，由医师填写；已有方案和记录照常沿用。
+        "type_minutes": {},
         "site_groups": SITE_GROUPS, "techniques": TECHNIQUES,
         "pain_levels": PAIN_LEVELS,
     }
@@ -550,8 +557,8 @@ def new_course(patient_id):
         return _render_course_form(patient, course, items, errors, visit=visit)
 
     course = {key: "" for key in COURSE_FIELDS}
-    course.update(start_date=date.today().isoformat(), planned_sessions=10,
-                  frequency=FREQUENCIES[0], status="进行中", initial_pain=None, final_pain=None)
+    course.update(start_date=date.today().isoformat(), planned_sessions="",
+                  frequency="", status="进行中", initial_pain=None, final_pain=None)
     items = []
     copy_id = request.args.get("copy_from", type=int)
     if copy_id:
@@ -565,6 +572,7 @@ def new_course(patient_id):
     elif visit:
         course["diagnosis"] = _visit_diagnosis(visit)
         course["start_date"] = visit["visit_date"]
+        course["initial_assessment"] = visit["chief_complaint"]
     last_visit = None if visit or copy_id else conn.execute(
         "SELECT * FROM visits WHERE patient_id = ? ORDER BY visit_date DESC, id DESC LIMIT 1",
         (patient_id,),

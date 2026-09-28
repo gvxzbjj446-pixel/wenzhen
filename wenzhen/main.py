@@ -10,12 +10,13 @@ from flask import (Blueprint, Response, current_app, flash, g, redirect,
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import backup
+from .analytics import analytics_csv_rows, build_analytics
 from .auth import (admin_user, create_user, validate_new_account,
                    validate_password)
 from .db import ADMIN_DEFAULT_PASSWORD, get_db, get_settings, set_setting
 from .fields import FIELD_LABELS, VISIT_TEXT_FIELDS
 from .records import due_followups, items_for_visits
-from .therapy import dashboard_summary, therapy_stats
+from .therapy import dashboard_summary
 from .utils import age_text, herb_text, parse_date, record_no
 
 bp = Blueprint("main", __name__)
@@ -116,26 +117,7 @@ def _top(column, params, limit=10):
 def stats():
     conn = get_db()
     params = _date_range(date.today().replace(month=1, day=1))
-    summary = conn.execute(
-        """
-        SELECT COUNT(*) AS visits, COUNT(DISTINCT patient_id) AS patients,
-               COALESCE(SUM(visit_type = '初诊'), 0) AS first_visits,
-               COALESCE(SUM(fee), 0) AS revenue
-        FROM visits WHERE visit_date BETWEEN ? AND ?
-        """,
-        params,
-    ).fetchone()
-    monthly = conn.execute(
-        """
-        SELECT substr(visit_date, 1, 7) AS month, COUNT(*) AS visits,
-               COUNT(DISTINCT patient_id) AS patients,
-               COALESCE(SUM(visit_type = '初诊'), 0) AS first_visits,
-               COALESCE(SUM(fee), 0) AS revenue
-        FROM visits WHERE visit_date BETWEEN ? AND ?
-        GROUP BY month ORDER BY month
-        """,
-        params,
-    ).fetchall()
+    analysis = build_analytics(*params)
     herbs = conn.execute(
         """
         SELECT i.herb, COUNT(DISTINCT i.visit_id) AS uses,
@@ -147,12 +129,8 @@ def stats():
         params,
     ).fetchall()
 
-    # 就诊患者的性别、年龄构成（年龄按统计截止日计算）
-    seen = conn.execute(
-        "SELECT gender, birth_date FROM patients WHERE id IN"
-        " (SELECT patient_id FROM visits WHERE visit_date BETWEEN ? AND ?)",
-        params,
-    ).fetchall()
+    # 服务患者合并去重，包括无问诊记录的纯理疗患者。
+    seen = analysis["people"]
     genders = {"男": 0, "女": 0, "未填": 0}
     ages = {label: 0 for label, _, _ in AGE_GROUPS}
     ages["未填"] = 0
@@ -167,11 +145,23 @@ def stats():
         ages[label] += 1
 
     return render_template(
-        "stats.html", start=params[0], end=params[1], summary=summary, monthly=monthly,
+        "stats.html", start=params[0], end=params[1], analysis=analysis,
+        summary=analysis["summary"], monthly=analysis["monthly"],
         diseases=_top("tcm_disease", params), syndromes=_top("syndrome", params),
         formulas=_top("formula_name", params), herbs=herbs,
         genders=genders, ages=ages, patient_count=len(seen),
-        therapy=therapy_stats(*params),
+        month_start=date.today().replace(day=1).isoformat(),
+        year_start=date.today().replace(month=1, day=1).isoformat(),
+    )
+
+
+@bp.route("/stats/export.csv")
+def export_stats():
+    params = _date_range(date.today().replace(month=1, day=1))
+    rows = ([*params, *row] for row in analytics_csv_rows(build_analytics(*params)))
+    return _csv_response(
+        f"问诊理疗汇总-{params[0]}至{params[1]}.csv",
+        ["统计开始", "统计结束", "分类", "指标或月份", "数值", "单位", "分母", "口径"], rows,
     )
 
 

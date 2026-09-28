@@ -4,6 +4,9 @@ import json
 import sqlite3
 import zipfile
 from datetime import date, timedelta
+from html.parser import HTMLParser
+
+from werkzeug.datastructures import MultiDict
 
 from conftest import _follow, make_patient, make_visit
 
@@ -91,7 +94,12 @@ def test_course_form_has_pickers(client):
     assert "足三里" in page and "阿是穴" in page and "腰部" in page
     start = page.index('id="therapy-minutes">') + len('id="therapy-minutes">')
     minutes = json.loads(page[start:page.index("</script>", start)])
-    assert minutes["针刺"] == 30 and "穴位贴敷" not in minutes  # 不计时的项目不预填
+    assert minutes == {}  # 新录入项目不自动决定治疗时长；已有方案仍保留原值
+    assert 'id="planned_sessions" name="planned_sessions" min="1" max="365" value=""' in page
+    assert 'id="c-frequency" name="frequency" value=""' in page
+    names = ["针刺", "艾灸", "推拿", "拔罐"]
+    positions = [page.index(f'data-therapy-pick="{name}"') for name in names]
+    assert positions == sorted(positions)
     assert "每日1次" in page and "未评" in page
 
 
@@ -132,9 +140,10 @@ def test_course_from_visit(client, db):
     pid = make_patient(client)
     vid = make_visit(client, pid, visit_date="2026-09-05", tcm_disease="痹证", syndrome="风寒湿痹证",
                      western_diagnosis="膝骨关节炎")
-    assert "开理疗疗程" in text(client.get(f"/visits/{vid}"))
+    assert f'/therapy/patients/{pid}/courses/new?visit_id={vid}' in text(client.get(f"/visits/{vid}"))
     form = text(client.get(f"/therapy/patients/{pid}/courses/new?visit_id={vid}"))
     assert "痹证·风寒湿痹证；膝骨关节炎" in form and 'value="2026-09-05"' in form
+    assert "胃脘胀痛3月</textarea>" in form and "已带入诊断与主诉" in form
     cid = make_course(client, pid, visit_id=str(vid))
     assert db.execute("SELECT visit_id FROM therapy_courses WHERE id = ?", (cid,)).fetchone()[0] == vid
 
@@ -150,6 +159,83 @@ def test_new_course_suggests_latest_diagnosis(client):
     vid = make_visit(client, pid, tcm_disease="项痹")
     page = text(client.get(f"/therapy/patients/{pid}/courses/new"))
     assert "带入此诊断" in page and f"visit_id={vid}" in page
+
+
+def test_course_rejects_orphan_item_parameters(client, db):
+    """项目名称漏填时，不能静默丢弃已输入的时长、手法。"""
+    pid = make_patient(client)
+    response = client.post(f"/therapy/patients/{pid}/courses/new", data={
+        "start_date": "2026-09-01", "planned_sessions": "3",
+        "item_therapy": [""], "item_site": [""],
+        "item_minutes": ["20"], "item_note": ["已核对参数"],
+    })
+    assert "没有填写治疗项目" in text(response)
+    assert 'value="20"' in text(response) and "已核对参数" in text(response)
+    assert db.execute("SELECT COUNT(*) FROM therapy_courses").fetchone()[0] == 0
+
+
+def test_simplified_course_edit_roundtrip_keeps_old_data(client, db):
+    """折叠区仍是表单的一部分，重新保存不能丢失旧版方案与自定义项目。"""
+    class FormFields(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.fields = MultiDict()
+            self.active = False
+            self.textarea = None
+            self.in_template = False
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag == "form":
+                self.active = "data-dirty-guard" in attrs
+            elif tag == "template":
+                self.in_template = True
+            if not self.active or self.in_template:
+                return
+            if tag == "input" and attrs.get("name"):
+                if attrs.get("type") != "radio" or "checked" in attrs:
+                    self.fields.add(attrs["name"], attrs.get("value", ""))
+            elif tag == "textarea":
+                self.textarea = attrs["name"]
+                self.fields.add(self.textarea, "")
+
+        def handle_data(self, data):
+            if self.active and self.textarea:
+                self.fields[self.textarea] += data
+
+        def handle_endtag(self, tag):
+            if tag == "textarea":
+                self.textarea = None
+            elif tag == "template":
+                self.in_template = False
+            elif tag == "form":
+                self.active = False
+
+    pid = make_patient(client)
+    cid = make_course(client, pid, items=(("自定义理疗", "左肩", "25", "旧版手法记录"),),
+                      fee="120.5", goal="改善抬肩活动", precautions="注意局部皮肤情况")
+    parser = FormFields()
+    parser.feed(text(client.get(f"/therapy/courses/{cid}/edit")))
+    # template 内的空白项目行不会作为实际表单字段提交。
+    assert parser.fields["initial_assessment"] == "腰部压痛，前屈受限"
+    response = client.post(f"/therapy/courses/{cid}/edit", data=parser.fields)
+    assert response.status_code == 302
+    course = db.execute("SELECT * FROM therapy_courses WHERE id = ?", (cid,)).fetchone()
+    assert (course["fee"], course["goal"], course["precautions"], course["initial_pain"]) == \
+        (120.5, "改善抬肩活动", "注意局部皮肤情况", 7)
+    item = db.execute("SELECT therapy, site, minutes, note FROM therapy_course_items WHERE course_id = ?",
+                      (cid,)).fetchone()
+    assert tuple(item) == ("自定义理疗", "左肩", 25, "旧版手法记录")
+
+
+def test_common_therapy_picker_respects_disabled_types(client, db):
+    db.execute("UPDATE therapy_types SET active = 0 WHERE name = '艾灸'")
+    db.commit()
+    pid = make_patient(client)
+    form = text(client.get(f"/therapy/patients/{pid}/courses/new"))
+    assert 'data-therapy-pick="针刺"' in form
+    assert 'data-therapy-pick="艾灸"' not in form
+    assert '<option value="艾灸">' not in form
 
 
 # ---------------------------------------------------------------- 每次治疗
@@ -295,6 +381,15 @@ def test_print_course(client):
     page = text(client.get(f"/therapy/courses/{cid}/print"))
     assert "理疗治疗单" in page and "酒精" in page and "患者签字" in page
     assert page.count('class="blank"') == 4
+
+
+def test_print_keeps_precautions_without_assessment(client):
+    pid = make_patient(client, allergies="")
+    cid = make_course(client, pid, items=(), initial_pain="", initial_assessment="",
+                      precautions="核对并记录皮肤情况")
+    page = text(client.get(f"/therapy/courses/{cid}/print"))
+    assert "核对并记录皮肤情况" in page
+    assert "过敏史：</span>未记录" in page
 
 
 def test_stats_include_therapy(client):

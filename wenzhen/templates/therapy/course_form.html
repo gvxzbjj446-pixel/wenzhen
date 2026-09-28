@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "_macros.html" import errors_box, csrf, patient_summary %}
 {% from "therapy/_macros.html" import item_editor, pain_scale %}
-{% block title %}{{ '编辑疗程' if editing else '新建理疗疗程' }} · {{ patient.name }}{% endblock %}
+{% block title %}{{ '编辑理疗方案' if editing else '新建理疗方案' }} · {{ patient.name }}{% endblock %}
 
 {% macro chip_field(key, label, options, multiline=False, placeholder='', joiner='，') %}
   <div class="field{{ ' wide' if multiline }}">
@@ -20,15 +20,15 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>{{ ('结束疗程' if finishing else '编辑疗程') if editing else '新建理疗疗程' }}</h1>
-    <div class="sub">{{ '填写疗效与小结后保存' if finishing else '治疗方案会作为每次治疗的默认内容，记录时可再调整' }}</div>
+    <h1>{{ ('结束疗程' if finishing else '编辑理疗方案') if editing else '新建理疗方案' }}</h1>
+    <div class="sub">{{ '填写疗效与小结后保存' if finishing else '填写项目、部位、次数与频率，每次治疗可沿用并调整' }}</div>
   </div>
 </div>
 
 <div class="card">{{ patient_summary(patient) }}</div>
 
 {% if visit %}
-  <div class="flashes"><div class="alert alert-info">来自 {{ visit.visit_date }} 的就诊，已带入诊断。</div></div>
+  <div class="flashes"><div class="alert alert-info">来自 <a href="{{ url_for('visits.detail', visit_id=visit.id) }}">{{ visit.visit_date }} 的问诊记录</a>，已带入诊断与主诉，可核对后修改。</div></div>
 {% elif last_visit and not editing and (last_visit.tcm_disease or last_visit.syndrome or last_visit.western_diagnosis) %}
   <div class="flashes"><div class="alert alert-info">
     最近一次就诊（{{ last_visit.visit_date }}）诊断：{{ last_visit.tcm_disease }} {{ last_visit.syndrome }} {{ last_visit.western_diagnosis }}
@@ -42,8 +42,8 @@
   {{ errors_box(errors) }}
 
   {% if editing %}
-    <div class="form-section{{ ' finishing' if finishing }}" id="summary">
-      <h2>疗程状态与小结</h2>
+    <details class="form-section optional-section{{ ' finishing' if finishing }}" id="summary" {{ 'open' if finishing or course.status != '进行中' or errors }}>
+      <summary>疗程状态与小结</summary>
       <div class="form-grid">
         <div class="field">
           <label>状态</label>
@@ -69,7 +69,7 @@
           <textarea id="final_assessment" name="final_assessment" rows="3" placeholder="症状、体征、活动度的改善情况，后续建议">{{ course.final_assessment }}</textarea>
         </div>
       </div>
-    </div>
+    </details>
   {% endif %}
 
   <div class="form-section">
@@ -83,52 +83,58 @@
         <label for="c-diagnosis">诊断</label>
         <input type="text" id="c-diagnosis" name="diagnosis" value="{{ course.diagnosis }}" placeholder="如：腰痛·寒湿痹阻证；腰椎间盘突出症" autocomplete="off">
       </div>
-      {{ chip_field('body_part', '治疗部位', body_parts, joiner='、') }}
+      {{ chip_field('body_part', '主要治疗部位', (), placeholder='如：肩颈、腰部，具体穴位在项目中填写', joiner='、') }}
       {{ chip_field('goal', '康复目标', (), placeholder='如：腰痛缓解，弯腰、久坐不受限') }}
     </div>
   </div>
 
   <div class="form-section">
-    <h2>初次评估</h2>
-    <div class="form-grid">
-      {{ pain_scale('initial_pain', course.initial_pain, pain_levels, '治疗前疼痛评分（VAS）') }}
-      {{ chip_field('initial_assessment', '症状、体征、活动度', assessment_options, multiline=True, placeholder='如：腰部压痛，前屈 60°，直腿抬高试验左 45° 阳性') }}
-    </div>
-  </div>
-
-  <div class="form-section">
-    <h2>治疗方案</h2>
+    <h2>理疗项目与安排</h2>
     <div class="form-grid" style="margin-bottom:12px">
       <div class="field">
         <label for="planned_sessions" class="required">计划次数</label>
         <input type="number" id="planned_sessions" name="planned_sessions" min="1" max="365" value="{{ course.planned_sessions }}" required>
       </div>
       <div class="field">
-        <label for="c-frequency">频次</label>
-        <input type="text" id="c-frequency" name="frequency" value="{{ course.frequency }}" autocomplete="off">
+        <label for="c-frequency">治疗频率</label>
+        <input type="text" id="c-frequency" name="frequency" value="{{ course.frequency }}" placeholder="按本次评估填写" autocomplete="off">
         <div class="chips">{% for f in frequencies %}<button type="button" class="chip" data-target="c-frequency" data-replace>{{ f }}</button>{% endfor %}</div>
       </div>
     </div>
-    {{ item_editor(items, therapy_types, type_minutes, site_groups, techniques) }}
+    {{ item_editor(items, therapy_types, type_minutes, site_groups, techniques, common_therapy_types) }}
   </div>
 
   <div class="form-section">
-    <h2>注意事项与收费</h2>
+    <h2>注意事项</h2>
     <div class="form-grid">
       <div class="field wide">
         <label for="precautions">注意事项与禁忌</label>
-        <textarea id="precautions" name="precautions" rows="2" placeholder="如：治疗后 4 小时内不洗澡；避风寒，勿久坐；孕妇禁针合谷、三阴交">{{ course.precautions }}</textarea>
+        <textarea id="precautions" name="precautions" rows="2" placeholder="记录已核对的禁忌、需观察的反应及交代给患者的事项">{{ course.precautions }}</textarea>
       </div>
+    </div>
+  </div>
+
+  <details class="form-section optional-section" {{ 'open' if course.initial_assessment or course.initial_pain is not none or errors }}>
+    <summary>初次评估 · 症状、体征与疼痛评分（选填）</summary>
+    <div class="form-grid">
+      {{ chip_field('initial_assessment', '症状、体征、活动度', assessment_options, multiline=True, placeholder='记录本次评估结果；从问诊带入的主诉可在此补充') }}
+      {{ pain_scale('initial_pain', course.initial_pain, pain_levels, '治疗前疼痛评分（0–10）') }}
+    </div>
+  </details>
+
+  <details class="form-section optional-section" {{ 'open' if course.fee or errors }}>
+    <summary>疗程收费（选填）</summary>
+    <div class="form-grid">
       <div class="field">
         <label for="fee">疗程收费（元）</label>
         <input type="text" id="fee" name="fee" inputmode="decimal" value="{{ course.fee|num if course.fee else '' }}" autocomplete="off">
         <div class="hint">预收整个疗程的费用时填写；按次收费则留空，在每次治疗时填写</div>
       </div>
     </div>
-  </div>
+  </details>
 
   <div class="form-actions">
-    <button class="btn btn-primary" type="submit">保存</button>
+    <button class="btn btn-primary" type="submit">{{ '保存疗程小结' if finishing else '保存理疗方案' }}</button>
     {% if not editing %}<button class="btn" type="submit" name="after" value="session">保存并记录第 1 次治疗</button>{% endif %}
     <a class="btn" href="{{ url_for('therapy.course_detail', course_id=course.id) if editing else url_for('patients.detail', patient_id=patient.id) }}">取消</a>
   </div>

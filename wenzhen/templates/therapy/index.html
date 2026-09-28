@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% from "_macros.html" import pagination %}
 {% from "therapy/_macros.html" import progress_bar, status_badge %}
-{% block title %}理疗康复{% endblock %}
+{% block title %}理疗方案{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>理疗康复</h1>
-    <div class="sub">针灸、推拿、拔罐、艾灸等理疗的疗程与每次治疗记录</div>
+    <h1>理疗方案</h1>
+    <div class="sub">针灸、艾灸、推拿、拔罐 · 安排疗程，记录每次治疗与变化</div>
   </div>
   <div class="actions">
     <a class="btn" href="{{ url_for('therapy.types') }}">理疗项目</a>
@@ -18,7 +18,6 @@
   <div class="kpi">
     <div class="label">今日理疗</div>
     <div class="value">{{ kpis.today }}<small>人次</small></div>
-    <div class="note">收费 ¥{{ kpis.today_fee|money }}</div>
   </div>
   <div class="kpi">
     <div class="label">进行中的疗程</div>
@@ -27,19 +26,18 @@
   <div class="kpi">
     <div class="label">本月理疗</div>
     <div class="value">{{ kpis.month_sessions }}<small>人次</small></div>
-    <div class="note">收费 ¥{{ kpis.month_revenue|money }}（含疗程预收）</div>
   </div>
 </div>
 
 <section class="card">
   <div class="card-head">
     <h2>今日治疗</h2>
-    <span class="muted small">为患者开疗程：打开患者档案 →「＋ 理疗疗程」</span>
+    <span class="muted small">在患者档案或问诊记录中创建方案</span>
   </div>
   {% if sessions %}
     <div class="table-wrap">
       <table class="table">
-        <thead><tr><th>患者</th><th>疗程</th><th>治疗项目</th><th class="num">疼痛 前→后</th><th class="num">收费</th><th></th></tr></thead>
+        <thead><tr><th>患者</th><th>疗程</th><th>治疗项目</th><th class="num">疼痛 前→后</th><th>疗效记录</th><th></th></tr></thead>
         <tbody>
           {% for s in sessions %}
             <tr>
@@ -48,7 +46,7 @@
               <td>{{ s.diagnosis or s.body_part or '—' }}<div class="muted small">第 {{ s.no }} / {{ s.planned_sessions }} 次</div></td>
               <td>{{ s['items']|therapy_text }}</td>
               <td class="num">{{ s.pain_before|pain }} → {{ s.pain_after|pain }}</td>
-              <td class="num">{{ s.fee|money }}</td>
+              <td>{{ s.notes or s.reaction or '未记录' }}</td>
               <td class="nowrap"><a href="{{ url_for('therapy.course_detail', course_id=s.course_id) }}">疗程</a></td>
             </tr>
           {% endfor %}
@@ -62,7 +60,7 @@
 
 <section class="card">
   <div class="card-head">
-    <h2>疗程</h2>
+    <h2>方案与疗程</h2>
     <nav class="ranges">
       {% for s in statuses %}
         <a class="btn btn-sm{{ ' btn-primary' if s == status }}" href="{{ url_for('therapy.index', status=s, q=q or None) }}">{{ s }}</a>
@@ -103,7 +101,7 @@
     {{ pagination(pager, 'therapy.index', status=status, q=q or None) }}
   {% else %}
     <div class="empty">
-      {% if q %}没有找到「{{ q }}」相关的疗程。{% elif status == '进行中' %}目前没有进行中的疗程。<br>在患者档案中点「＋ 理疗疗程」即可开始。{% else %}没有{{ status if status != '全部' }}疗程。{% endif %}
+      {% if q %}没有找到「{{ q }}」相关的疗程。{% elif status == '进行中' %}目前没有进行中的疗程。<br>从患者档案或问诊记录创建理疗方案即可开始。{% else %}没有{{ status if status != '全部' }}疗程。{% endif %}
     </div>
   {% endif %}
 </section>

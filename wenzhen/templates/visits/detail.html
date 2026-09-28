@@ -16,11 +16,25 @@
     <a class="btn" href="{{ url_for('visits.edit', visit_id=visit.id) }}">编辑</a>
     {% if items %}<a class="btn" href="{{ url_for('visits.print_view', visit_id=visit.id, kind='prescription') }}">打印处方</a>{% endif %}
     <a class="btn" href="{{ url_for('visits.print_view', visit_id=visit.id, kind='record') }}">打印病历</a>
-    <a class="btn" href="{{ url_for('therapy.new_course', patient_id=patient.id, visit_id=visit.id) }}">开理疗疗程</a>
+    <a class="btn" href="{{ url_for('therapy.new_course', patient_id=patient.id, visit_id=visit.id) }}">制定理疗方案</a>
   </div>
 </div>
 
 <div class="card">{{ patient_summary(patient, visit.visit_date) }}</div>
+
+{% if related_courses %}
+<section class="card">
+  <h2>关联理疗方案</h2>
+  <ul class="list">
+    {% for c in related_courses %}
+    <li><div class="main"><a href="{{ url_for('therapy.course_detail', course_id=c.id) }}">{{ c.diagnosis or c.body_part or '理疗方案' }}</a>
+      <div class="meta">计划 {{ c.planned_sessions }} 次 · {{ c.status }}</div></div>
+      {% if c.status == '进行中' %}<a class="btn btn-sm" href="{{ url_for('therapy.new_session', course_id=c.id) }}">记录治疗</a>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 
 <div class="card">
   {% for title, rows in sections %}

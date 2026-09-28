@@ -12,19 +12,16 @@
   {% set ep = request.endpoint or '' %}
   <header class="topbar">
     <a class="brand" href="{{ url_for('main.index') }}">
-      <span class="seal">{{ clinic.clinic_name[:1] }}</span><span class="brand-text">{{ clinic.clinic_name }}</span>
+      <span class="seal">{{ clinic.clinic_name[:1] }}</span><span class="brand-text">{{ clinic.clinic_name }}</span><span class="edition">简洁版</span>
     </a>
-    <nav class="nav">
+    <nav class="nav" aria-label="主导航">
       <a href="{{ url_for('main.index') }}" class="{{ 'active' if ep == 'main.index' }}">工作台</a>
-      <a href="{{ url_for('patients.index') }}" class="{{ 'active' if ep.startswith('patients.') or ep in ('visits.new', 'visits.edit', 'visits.detail') }}">患者</a>
-      <a href="{{ url_for('visits.index') }}" class="{{ 'active' if ep == 'visits.index' }}">就诊记录</a>
-      <a href="{{ url_for('visits.followups') }}" class="{{ 'active' if ep == 'visits.followups' }}">复诊提醒</a>
-      <a href="{{ url_for('therapy.index') }}" class="{{ 'active' if ep.startswith('therapy.') }}">理疗康复</a>
-      <a href="{{ url_for('formulas.index') }}" class="{{ 'active' if ep.startswith('formulas.') }}">方剂库</a>
-      <a href="{{ url_for('main.stats') }}" class="{{ 'active' if ep == 'main.stats' }}">统计</a>
-      <a href="{{ url_for('main.settings') }}" class="{{ 'active' if ep in ('main.settings', 'main.account') }}">设置</a>
+      <a href="{{ url_for('visits.index') }}" class="{{ 'active' if ep.startswith('visits.') or ep.startswith('patients.') }}">问诊记录</a>
+      <a href="{{ url_for('therapy.index') }}" class="{{ 'active' if ep.startswith('therapy.') }}">理疗方案</a>
+      <a href="{{ url_for('main.stats') }}" class="{{ 'active' if ep == 'main.stats' }}">数据分析</a>
     </nav>
     <div class="userbox">
+      <a href="{{ url_for('main.settings') }}">设置</a>
       <a href="{{ url_for('main.account') }}">{{ g.user.display_name or g.user.username }}</a>
       <form method="post" action="{{ url_for('auth.logout') }}" data-logout>
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
