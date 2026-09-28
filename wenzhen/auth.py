@@ -4,7 +4,7 @@ from flask import (Blueprint, flash, g, redirect, render_template, request,
                    session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from .db import ADMIN_USERNAME, ensure_admin, get_db, set_setting
+from .db import get_db, set_setting
 from .utils import safe_next
 
 bp = Blueprint("auth", __name__)
@@ -45,12 +45,6 @@ def create_user(username, display_name, password):
     return cur.lastrowid
 
 
-def admin_user():
-    return get_db().execute(
-        "SELECT id, username, display_name FROM users WHERE username = ?", (ADMIN_USERNAME,)
-    ).fetchone()
-
-
 def log_in(user_id):
     session.clear()
     session["user_id"] = user_id
@@ -87,7 +81,6 @@ def setup():
         errors = validate_new_account(username, password, form.get("password2", ""))
         if not errors:
             user_id = create_user(username, display_name, password)
-            ensure_admin(get_db())
             for key in ("clinic_name", "doctor_name"):
                 value = form.get(key, "").strip()
                 if value:

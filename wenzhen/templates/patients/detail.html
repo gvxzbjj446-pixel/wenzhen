@@ -1,35 +1,5 @@
 {% extends "base.html" %}
 {% from "_macros.html" import csrf, visit_badge %}
-{% from "therapy/_macros.html" import progress_bar, status_badge %}
-
-{% macro therapy_card() %}
-  <section class="card">
-    <div class="card-head">
-      <h2>理疗康复（{{ courses|length }} 个疗程）</h2>
-      <a class="btn btn-sm" href="{{ url_for('therapy.new_course', patient_id=patient.id) }}">＋ 理疗疗程</a>
-    </div>
-    {% if courses %}
-      <ul class="list">
-        {% for c in courses %}
-          <li>
-            <div class="main">
-              <a href="{{ url_for('therapy.course_detail', course_id=c.id) }}">{{ c.diagnosis or c.body_part or '理疗疗程' }}</a>
-              {{ status_badge(c.status) }}{% if c.outcome %} <span class="muted small">{{ c.outcome }}</span>{% endif %}
-              <div class="meta">{{ c.start_date }} 开始{% if c.body_part and c.diagnosis %} · {{ c.body_part }}{% endif %}{% if c.last_date %} · 最近治疗 {{ c.last_date }}{% endif %}</div>
-              {% if c.stalled %}<span class="badge badge-warning">已 {{ c.idle_days }} 天未来</span>{% endif %}
-            </div>
-            <div class="actions" style="flex-direction:column;align-items:flex-end">
-              {{ progress_bar(c) }}
-              {% if c.status == '进行中' %}<a class="btn btn-sm btn-primary" href="{{ url_for('therapy.new_session', course_id=c.id) }}">记录治疗</a>{% endif %}
-            </div>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <div class="empty">还没有理疗疗程。针灸、推拿、拔罐等可在这里建立疗程并记录每次治疗。</div>
-    {% endif %}
-  </section>
-{% endmacro %}
 {% block title %}{{ patient.name }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -42,15 +12,11 @@
     {% if visits %}
       <a class="btn" href="{{ url_for('visits.new', patient_id=patient.id, copy_from=visits[0].id) }}">按上次复诊</a>
     {% endif %}
-    <a class="btn" href="{{ url_for('therapy.new_course', patient_id=patient.id) }}">＋ 理疗疗程</a>
     <a class="btn" href="{{ url_for('patients.edit', patient_id=patient.id) }}">编辑资料</a>
   </div>
 </div>
 
-{% set therapy_first = courses|selectattr('status', 'equalto', '进行中')|list %}
 <div class="layout-aside">
-  <div>
-  {% if therapy_first %}{{ therapy_card() }}{% endif %}
   <section class="card">
     <div class="card-head">
       <h2>就诊记录（{{ visits|length }} 次）</h2>
@@ -91,8 +57,6 @@
       <div class="empty">还没有就诊记录。<a href="{{ url_for('visits.new', patient_id=patient.id) }}">开始第一次问诊</a></div>
     {% endif %}
   </section>
-  {% if not therapy_first %}{{ therapy_card() }}{% endif %}
-  </div>
 
   <aside>
     <section class="card">
@@ -115,7 +79,7 @@
       </dl>
     </section>
     <form method="post" action="{{ url_for('patients.delete', patient_id=patient.id) }}"
-          data-confirm="确定删除患者「{{ patient.name }}」及其全部 {{ visits|length }} 次就诊记录{% if courses %}、{{ courses|length }} 个理疗疗程{% endif %}吗？此操作不可恢复。">
+          data-confirm="确定删除患者「{{ patient.name }}」及其全部 {{ visits|length }} 次就诊记录吗？此操作不可恢复。">
       {{ csrf() }}
       <button class="btn btn-danger btn-sm" type="submit">删除该患者</button>
     </form>

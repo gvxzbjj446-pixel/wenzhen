@@ -9,9 +9,8 @@ from werkzeug.security import generate_password_hash
 
 from .fields import VISIT_TEXT_FIELDS
 from .herbs import SEED_FORMULAS
-from .therapy_data import SEED_THERAPY_TYPES
 
-SCHEMA_VERSION = 2  # 2：新增理疗康复（therapy_*）各表
+SCHEMA_VERSION = 1
 
 DEFAULT_SETTINGS = {
     "clinic_name": "王艳霞中医门诊",
@@ -21,11 +20,6 @@ DEFAULT_SETTINGS = {
     "default_usage": "水煎服，日一剂，早晚分服",
     "default_dose_count": "7",
 }
-
-# 系统管理员账户：完成首次设置时与医师账户一并建立，不可删除
-ADMIN_USERNAME = "admin"
-ADMIN_DISPLAY_NAME = "系统管理员"
-ADMIN_DEFAULT_PASSWORD = "888888"
 
 
 def connect(path):
@@ -57,14 +51,10 @@ def init_db():
         "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
         DEFAULT_SETTINGS.items(),
     )
-    ensure_admin(conn)
     # 示例方剂只写入一次；医师删掉后不会再出现
     if get_setting("formulas_seeded") != "1":
         _seed_formulas(conn)
         set_setting("formulas_seeded", "1")
-    if get_setting("therapy_types_seeded") != "1":
-        _seed_therapy_types(conn)
-        set_setting("therapy_types_seeded", "1")
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     conn.commit()
 
@@ -75,20 +65,6 @@ def _add_missing_visit_columns(conn):
     for key in VISIT_TEXT_FIELDS:
         if key not in existing:
             conn.execute(f"ALTER TABLE visits ADD COLUMN {key} TEXT NOT NULL DEFAULT ''")
-
-
-def ensure_admin(conn):
-    """已有账户（完成首次设置）后，确保系统管理员账户存在，初始密码 888888。返回其 id。"""
-    row = conn.execute("SELECT id FROM users WHERE username = ?", (ADMIN_USERNAME,)).fetchone()
-    if row:
-        return row["id"]
-    if conn.execute("SELECT 1 FROM users LIMIT 1").fetchone() is None:
-        return None  # 首次使用，先进入设置页建立医师账户
-    cur = conn.execute(
-        "INSERT INTO users (username, display_name, password_hash) VALUES (?, ?, ?)",
-        (ADMIN_USERNAME, ADMIN_DISPLAY_NAME, generate_password_hash(ADMIN_DEFAULT_PASSWORD)),
-    )
-    return cur.lastrowid
 
 
 def _seed_formulas(conn):
@@ -110,15 +86,6 @@ def _seed_formulas(conn):
             [(cur.lastrowid, i, herb, dose, unit)
              for i, (herb, dose, unit) in enumerate(formula["items"])],
         )
-
-
-def _seed_therapy_types(conn):
-    conn.executemany(
-        "INSERT OR IGNORE INTO therapy_types (name, category, minutes, notes, position)"
-        " VALUES (?, ?, ?, ?, ?)",
-        [(name, category, minutes, notes, i)
-         for i, (name, category, minutes, notes) in enumerate(SEED_THERAPY_TYPES)],
-    )
 
 
 def get_setting(key, default=""):

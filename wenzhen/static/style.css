@@ -21,10 +21,6 @@
   --success-soft: #e6f2e7;
   --bar: #5b9483;
   --bar-track: #e9f1ee;
-  /* 图表：两条线的颜色（已按色弱可辨识度校验），网格与坐标轴 */
-  --series-1: #2a78d6;
-  --series-2: #eb6834;
-  --chart-grid: #ece6db;
   --radius: 10px;
   --radius-sm: 6px;
   --shadow: 0 1px 2px rgba(70, 50, 30, .06), 0 1px 1px rgba(70, 50, 30, .04);
@@ -363,7 +359,6 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .list li:last-child { border-bottom: 0; }
 .list .main { min-width: 0; }
 .list .meta { color: var(--muted); font-size: 13px; }
-.list li > .badge { align-self: flex-start; flex-shrink: 0; }
 
 /* ---------- 患者 ---------- */
 
@@ -492,97 +487,6 @@ table.herb-table { width: 100%; border-collapse: collapse; }
 
 .ranges { display: flex; flex-wrap: wrap; gap: 6px; }
 
-/* ---------- 理疗康复 ---------- */
-
-.progress { display: inline-flex; align-items: center; gap: 8px; }
-.progress-track { width: 90px; height: 8px; background: var(--bar-track); border-radius: 4px; overflow: hidden; }
-.progress-track > span { display: block; height: 100%; background: var(--bar); border-radius: 4px; }
-.progress-text { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
-
-/* 疼痛评分 0–10：一排相连的按钮，像一把刻度尺 */
-.pain-scale { display: flex; flex-wrap: wrap; row-gap: 4px; }
-.pain-scale label {
-  position: relative;
-  display: inline-grid;
-  place-items: center;
-  min-width: 34px;
-  height: 34px;
-  margin: 0 0 0 -1px;
-  padding: 0 6px;
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-}
-.pain-scale label:first-child { margin-left: 0; margin-right: 8px; border-radius: var(--radius-sm); }
-.pain-scale label:nth-child(2) { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
-.pain-scale label:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
-.pain-scale input { position: absolute; opacity: 0; pointer-events: none; }
-.pain-scale label:hover { z-index: 1; border-color: var(--primary); }
-.pain-scale label:has(input:checked) { z-index: 2; }
-.pain-scale label:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--primary-soft); }
-.pain-scale .pain-na { color: var(--muted); font-size: 13px; }
-.pain-scale label:has(input:checked) { border-color: var(--primary); background: var(--primary); color: #fff; }
-.pain-scale .pain-mid:has(input:checked) { border-color: var(--warning); background: var(--warning); }
-.pain-scale .pain-high:has(input:checked) { border-color: var(--danger); background: var(--danger); }
-
-/* 治疗项目表格与穴位快选 */
-.item-table .col-therapy { width: 130px; }
-.item-table .col-min { width: 64px; }
-.item-table .col-note { width: 130px; }
-.item-table tr.active td { background: var(--primary-soft); }
-.item-table tr.active td:first-child { color: var(--primary); font-weight: 600; }
-.site-picker { margin-top: 12px; padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
-.site-picker-head { font-size: 13px; color: var(--ink-2); margin-bottom: 6px; }
-.site-picker-head strong { color: var(--primary); margin: 0 2px; }
-.site-group { display: flex; gap: 10px; align-items: baseline; padding: 3px 0; }
-.site-group-name { flex: 0 0 2.5em; color: var(--muted); font-size: 13px; }
-.site-group .chips { margin-top: 0; }
-
-.plan-list { margin: 0; padding-left: 18px; font-size: 14px; }
-.plan-list li { margin-bottom: 4px; }
-label.checkbox { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); cursor: pointer; }
-.form-section.finishing { background: var(--primary-soft); margin: -20px -20px 18px; padding: 20px; border-radius: var(--radius) var(--radius) 0 0; }
-.form-section.finishing + .form-section { border-top: 0; margin-top: 0; }
-
-/* 疼痛评分变化图 */
-.chart { margin: 0; }
-.chart-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-2); margin-bottom: 6px; }
-.chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.key { display: inline-block; width: 14px; height: 2px; border-radius: 1px; }
-.key-before { background: var(--series-1); }
-.key-after { background: var(--series-2); }
-.chart-body { position: relative; }
-.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
-.chart .grid { stroke: var(--chart-grid); stroke-width: 1; }
-.chart .axis { fill: var(--muted); font-size: 11px; }
-.chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.chart .line-before { stroke: var(--series-1); }
-.chart .line-after { stroke: var(--series-2); }
-.chart .dot { stroke: var(--surface); stroke-width: 2; }
-.chart .dot-before { fill: var(--series-1); }
-.chart .dot-after { fill: var(--series-2); }
-.chart .end-label { fill: var(--ink-2); font-size: 12px; }
-.chart .crosshair { stroke: var(--border-strong); stroke-width: 1; }
-.chart .hit { fill: transparent; }
-.chart-tip {
-  position: absolute;
-  top: 8px;
-  padding: 8px 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 4px 14px rgba(42, 37, 33, .15);
-  font-size: 13px;
-  line-height: 1.7;
-  pointer-events: none;
-  white-space: nowrap;
-}
-.chart-tip .tip-head { color: var(--ink-2); margin-bottom: 2px; }
-.chart-tip div { display: flex; align-items: center; gap: 6px; }
-
 /* ---------- 页面脚本未运行时的提示 ---------- */
 
 /* 默认隐藏；3 秒后仍没有被脚本标记为就绪才显示，正常情况下看不到 */
@@ -672,10 +576,6 @@ code.path { word-break: break-all; font-size: 13px; }
   .card { padding: 16px; }
   .form-actions { margin: 0 -16px -16px; padding: 12px 16px; }
   .herb-table .col-note, .herb-table td.note-cell { display: none; }
-  .item-table .col-therapy { width: 96px; }
-  .pain-scale label { min-width: 25px; height: 32px; padding: 0 4px; font-size: 13px; }
-  .pain-scale label:first-child { margin-right: 6px; }
-  .site-group { flex-direction: column; gap: 2px; }
   dl.kv { grid-template-columns: 5em minmax(0, 1fr); }
 }
 

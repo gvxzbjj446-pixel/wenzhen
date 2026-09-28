@@ -16,7 +16,6 @@
     <a class="btn" href="{{ url_for('visits.edit', visit_id=visit.id) }}">编辑</a>
     {% if items %}<a class="btn" href="{{ url_for('visits.print_view', visit_id=visit.id, kind='prescription') }}">打印处方</a>{% endif %}
     <a class="btn" href="{{ url_for('visits.print_view', visit_id=visit.id, kind='record') }}">打印病历</a>
-    <a class="btn" href="{{ url_for('therapy.new_course', patient_id=patient.id, visit_id=visit.id) }}">开理疗疗程</a>
   </div>
 </div>
 

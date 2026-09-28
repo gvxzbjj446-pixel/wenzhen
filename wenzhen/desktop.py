@@ -326,7 +326,6 @@ class DesktopApi:
         created = backup._parse_time(info["created_at"])
         return {
             "ok": True, "path": path, "patients": info["patients"], "visits": info["visits"],
-            "therapy_sessions": info.get("therapy_sessions", 0),
             "created_at": created.strftime("%Y-%m-%d %H:%M") if created else "",
         }
 
@@ -470,7 +469,6 @@ def build_menu(api):
             MenuAction("工作台", api._menu_go("/")),
             MenuAction("患者", api._menu_go("/patients/")),
             MenuAction("复诊提醒", api._menu_go("/followups")),
-            MenuAction("理疗康复", api._menu_go("/therapy/")),
             MenuSeparator(),
             MenuAction("刷新", api._menu_reload),
         ]),

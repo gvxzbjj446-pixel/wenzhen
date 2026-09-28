@@ -66,8 +66,7 @@
     </ul>
     <p class="muted small">单独导出 Excel 表格：
       <a href="{{ url_for('main.export_patients') }}" data-download="患者档案.csv">患者档案</a> ·
-      <a href="{{ url_for('main.export_visits') }}" data-download="就诊记录.csv">就诊记录</a> ·
-      <a href="{{ url_for('therapy.export_csv') }}" data-download="理疗记录.csv">理疗记录</a></p>
+      <a href="{{ url_for('main.export_visits') }}" data-download="就诊记录.csv">就诊记录</a></p>
   </section>
 
   <section class="card" style="margin:0">
@@ -136,7 +135,7 @@
             <tr>
               <td class="nowrap">{{ b.created.strftime('%Y-%m-%d %H:%M') }}</td>
               <td class="nowrap">{{ b.label }}{% if b.full %} <span class="badge badge-first" title="含 JSON 与 CSV，可迁移到其他系统">完整</span>{% endif %}</td>
-              <td class="small">{% if b.counts %}患者 {{ b.counts.patients }} 人 · 就诊 {{ b.counts.visits }} 条{% if b.counts.therapy_sessions %} · 理疗 {{ b.counts.therapy_sessions }} 次{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
+              <td class="small">{% if b.counts %}患者 {{ b.counts.patients }} 人 · 就诊 {{ b.counts.visits }} 条{% else %}<span class="muted">—</span>{% endif %}</td>
               <td class="num small">{{ size(b.size) }}</td>
               <td class="nowrap">
                 {% if desktop %}

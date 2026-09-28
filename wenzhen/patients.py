@@ -6,7 +6,6 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from .db import get_db
 from .records import get_patient, items_for_visits
-from .therapy import patient_courses
 from .utils import escape_like, paginate, parse_date
 
 bp = Blueprint("patients", __name__, url_prefix="/patients")
@@ -119,7 +118,7 @@ def detail(patient_id):
     total_fee = sum(v["fee"] for v in visits)
     return render_template(
         "patients/detail.html", patient=patient, visits=visits, items=items,
-        total_fee=total_fee, courses=patient_courses(patient_id),
+        total_fee=total_fee,
     )
 
 
@@ -150,5 +149,5 @@ def delete(patient_id):
     conn = get_db()
     conn.execute("DELETE FROM patients WHERE id = ?", (patient_id,))
     conn.commit()
-    flash(f"已删除患者 {patient['name']} 及其全部就诊、理疗记录。", "success")
+    flash(f"已删除患者 {patient['name']} 及其全部就诊记录。", "success")
     return redirect(url_for("patients.index"))

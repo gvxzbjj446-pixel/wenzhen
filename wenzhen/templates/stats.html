@@ -104,36 +104,6 @@
   </section>
 </div>
 
-<h2 style="margin:28px 0 12px">理疗康复</h2>
-<div class="kpis">
-  <div class="kpi"><div class="label">理疗人次</div><div class="value">{{ therapy.sessions }}</div></div>
-  <div class="kpi"><div class="label">理疗患者</div><div class="value">{{ therapy.patients }}<small>人</small></div></div>
-  <div class="kpi"><div class="label">新开疗程</div><div class="value">{{ therapy.new_courses }}<small>个</small></div></div>
-  <div class="kpi"><div class="label">理疗收费</div><div class="value">¥{{ therapy.revenue|money }}</div><div class="note">含疗程预收</div></div>
-</div>
-<div class="grid grid-2">
-  {{ rank_table('常用理疗项目', therapy.types) }}
-  <section class="card">
-    <h2>疗效评价（{{ therapy.finished }} 个疗程）</h2>
-    {% if therapy.finished %}
-      {% set top = therapy.outcomes.values()|max %}
-      <table class="table">
-        <tbody>
-          {% for label, n in therapy.outcomes.items() %}
-            <tr><td>{{ label }}</td><td class="bar-cell">{{ bar(n, top, label ~ '：' ~ n ~ ' 个疗程') }}</td><td class="num">{{ n }}</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <div class="empty">这段时间没有结束并评价疗效的疗程。</div>
-    {% endif %}
-    {% if therapy.pain_courses %}
-      <p class="small" style="margin-top:12px">平均疼痛评分：治疗前 <strong>{{ therapy.pain_before|round(1) }}</strong> → 结束时 <strong>{{ therapy.pain_after|round(1) }}</strong>
-        <span class="muted">（{{ therapy.pain_courses }} 个疗程）</span></p>
-    {% endif %}
-  </section>
-</div>
-
 <section class="card" style="margin-top:20px">
   <h2>常用药物（前 20）</h2>
   {% if herbs %}

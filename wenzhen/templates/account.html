@@ -35,13 +35,11 @@
         {% for u in users %}
           <tr>
             <td>{{ u.username }}</td>
-            <td>{{ u.display_name }}{% if admin and u.id == admin.id %} <span class="badge badge-first">系统管理员</span>{% endif %}</td>
+            <td>{{ u.display_name }}</td>
             <td class="small nowrap">{{ u.created_at[:10] }}</td>
-            <td class="nowrap">
+            <td>
               {% if u.id == g.user.id %}
                 <span class="muted small">当前</span>
-              {% elif admin and u.id == admin.id %}
-                <span class="muted small">不可删除</span>
               {% else %}
                 <form class="inline" method="post" action="{{ url_for('main.delete_user', user_id=u.id) }}" data-confirm="确定删除账户「{{ u.username }}」吗？">
                   {{ csrf() }}
@@ -53,9 +51,6 @@
         {% endfor %}
       </tbody>
     </table>
-    {% if admin_default_password %}
-      <p class="muted small" style="margin-top:8px">系统管理员（用户名 admin）的密码仍是初始密码 888888。用 admin 登录后，可在左侧修改密码。</p>
-    {% endif %}
 
     <form method="post" style="margin-top:20px">
       {{ csrf() }}
