@@ -12,7 +12,7 @@ from . import db
 from .security import csrf_protect, csrf_token, set_security_headers
 from .utils import register_template_filters
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
 # 界面文件的类型。Windows 上 Python 会从注册表读取文件类型，不少电脑把 .js 登记成
 # text/plain；配合 nosniff 响应头，浏览器会拒绝执行界面脚本（点选项、开方等都没反应）。
@@ -35,8 +35,9 @@ def create_app(test_config=None, instance_path=None):
         PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
         SESSION_COOKIE_SAMESITE="Lax",
         CSRF_ENABLED=True,
-        AUTO_BACKUP=True,   # 每天首次访问时自动备份数据库
-        BACKUP_KEEP=30,     # 自动备份保留份数
+        AUTO_BACKUP=True,       # 每天首次使用时在后台自动备份
+        BACKUP_KEEP_DAYS=30,    # 每日备份全部保留的天数；更早的每月保留一份，长期保存
+        MAX_CONTENT_LENGTH=1024 * 1024 * 1024,  # 上传备份文件恢复时的大小上限
         DESKTOP=False,      # 桌面版：显示“备份到…”“打开数据文件夹”等本机功能
     )
     if test_config is None:
@@ -54,8 +55,8 @@ def create_app(test_config=None, instance_path=None):
     app.jinja_env.globals["csrf_token"] = csrf_token
     register_template_filters(app)
 
-    from . import auth, formulas, main, patients, visits
-    for blueprint in (auth.bp, main.bp, patients.bp, visits.bp, formulas.bp):
+    from . import auth, backup_views, formulas, main, patients, visits
+    for blueprint in (auth.bp, main.bp, patients.bp, visits.bp, formulas.bp, backup_views.bp):
         app.register_blueprint(blueprint)
 
     with app.app_context():
@@ -81,19 +82,26 @@ def _load_secret_key(instance_path):
 
 
 def _install_daily_backup(app):
+    """每天第一次有人使用时，在后台线程做当天的自动备份，不耽误打开页面。"""
+    from .backup import daily_backup
+
     lock = threading.Lock()
     state = {"day": None}
 
+    def run():
+        with app.app_context():
+            try:
+                daily_backup(app.config["BACKUP_KEEP_DAYS"])
+            except Exception:  # 备份失败不能影响看诊，记录日志即可
+                app.logger.exception("自动备份失败")
+
     @app.before_request
-    def daily_backup():
+    def start_daily_backup():
         today = date.today().isoformat()
         if state["day"] == today:
             return
         with lock:
             if state["day"] == today:
                 return
-            try:
-                db.auto_backup(app.config["BACKUP_KEEP"])
-            except Exception:  # 备份失败不能影响看诊，记录日志即可
-                app.logger.exception("自动备份失败")
             state["day"] = today
+        threading.Thread(target=run, name="wenzhen-daily-backup", daemon=True).start()

@@ -27,35 +27,18 @@
   </form>
 
   <section class="card" style="margin:0">
-    <h2>数据备份与导出</h2>
+    <h2>数据备份与恢复</h2>
     <p class="muted small">当前共有患者 {{ counts.patients }} 人、就诊记录 {{ counts.visits }} 条、方剂 {{ counts.formulas }} 首。</p>
-    <div class="actions" style="margin:12px 0 16px">
-      {% if desktop %}
-        <button type="button" class="btn btn-primary" data-desktop-action="backup">备份到…</button>
-        <button type="button" class="btn" data-desktop-action="restore">从备份恢复…</button>
-      {% else %}
-        <a class="btn btn-primary" href="{{ url_for('main.backup') }}">下载完整备份</a>
-      {% endif %}
-      <a class="btn" href="{{ url_for('main.export_patients') }}" data-download="患者档案.csv">导出患者（CSV）</a>
-      <a class="btn" href="{{ url_for('main.export_visits') }}" data-download="就诊记录.csv">导出就诊记录（CSV）</a>
-    </div>
-    <p class="small">系统每天首次使用时会自动备份一次，保留最近 30 份，存放在：</p>
-    <p class="small"><code class="path">{{ backup_folder }}</code></p>
-    {% if desktop %}
-      <p class="muted small">建议每周用“备份到…”把数据另存到 U 盘或网盘一份。换电脑时，在新电脑上安装本软件后用“从备份恢复…”即可。</p>
-    {% else %}
-      <p class="muted small">建议定期把“下载完整备份”得到的文件另存到 U 盘或网盘。恢复方法见 README。</p>
+    <dl class="kv" style="margin:12px 0">
+      <dt>最近备份</dt><dd>{{ backup_status.latest.created.strftime('%Y-%m-%d %H:%M') if backup_status.latest else '还没有' }}</dd>
+      <dt>本机备份</dt><dd>{{ backup_status.count }} 份</dd>
+      <dt>外部文件夹</dt><dd>{% if backup_status.mirror_root %}<code class="path">{{ backup_status.mirror_dir }}</code>{% else %}<span class="muted">未设置</span>{% endif %}</dd>
+    </dl>
+    {% if backup_status.remind_offsite %}
+      <p class="small" style="color:var(--warning)">⚠ {% if backup_status.days_since_offsite is none %}还没有把数据备份到这台电脑以外的地方。{% else %}已有 {{ backup_status.days_since_offsite }} 天没有备份到这台电脑以外的地方。{% endif %}</p>
     {% endif %}
-    {% if backups %}
-      <table class="table" style="margin-top:8px">
-        <thead><tr><th>最近的备份</th><th>时间</th><th class="num">大小</th></tr></thead>
-        <tbody>
-          {% for b in backups %}
-            <tr><td class="small">{{ b.name }}</td><td class="small nowrap">{{ b.time }}</td><td class="num small">{{ '%.0f'|format(b.size_kb) }} KB</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% endif %}
+    <p class="small">每天自动备份，历史备份长期保存；可导出完整数据包用于迁移到其他系统，也可从任一备份恢复。</p>
+    <a class="btn btn-primary" href="{{ url_for('backups.index') }}">数据备份与恢复</a>
   </section>
 </div>
 

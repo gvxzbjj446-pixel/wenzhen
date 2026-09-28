@@ -1,19 +1,17 @@
-"""工作台、统计、系统设置、账户管理、数据导出与备份。"""
+"""工作台、统计、系统设置、账户管理、表格导出。备份与恢复见 backup_views.py。"""
 
 import csv
 import io
-import os
-import tempfile
-from datetime import date, datetime, timedelta
-
+from datetime import date, timedelta
 from urllib.parse import quote
 
 from flask import (Blueprint, Response, current_app, flash, g, redirect,
-                   render_template, request, send_file, url_for)
+                   render_template, request, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from . import backup
 from .auth import create_user, validate_new_account, validate_password
-from .db import backup_dir, backup_to, get_db, get_settings, set_setting
+from .db import get_db, get_settings, set_setting
 from .fields import FIELD_LABELS, VISIT_TEXT_FIELDS
 from .records import due_followups, items_for_visits
 from .utils import age_text, herb_text, parse_date, record_no
@@ -88,6 +86,7 @@ def index():
                               (today - timedelta(days=1)).isoformat()),
         upcoming=due_followups((today + timedelta(days=1)).isoformat(),
                                (today + timedelta(days=7)).isoformat()),
+        backup_status=backup.status(),
     )
 
 
@@ -194,16 +193,6 @@ def settings():
             flash("设置已保存。", "success")
             return redirect(url_for("main.settings"))
 
-    folder = backup_dir()
-    backups = []
-    if os.path.isdir(folder):
-        for name in sorted(os.listdir(folder), reverse=True)[:10]:
-            path = os.path.join(folder, name)
-            backups.append({
-                "name": name,
-                "size_kb": os.path.getsize(path) / 1024,
-                "time": datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M"),
-            })
     conn = get_db()
     counts = {
         "patients": conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0],
@@ -212,7 +201,7 @@ def settings():
     }
     return render_template(
         "settings.html", fields=SETTING_FIELDS, values=values, errors=errors,
-        backups=backups, backup_folder=folder, counts=counts,
+        counts=counts, backup_status=backup.status(),
         data_folder=current_app.instance_path,
     )
 
@@ -341,20 +330,3 @@ def export_visits():
         for v in visits
     )
     return _csv_response(f"就诊记录-{date.today():%Y%m%d}.csv", header, data)
-
-
-@bp.route("/backup")
-def backup():
-    """下载完整数据库备份文件。"""
-    fd, path = tempfile.mkstemp(suffix=".sqlite3")
-    os.close(fd)
-    try:
-        backup_to(path)
-        with open(path, "rb") as f:
-            data = f.read()
-    finally:
-        os.remove(path)
-    return send_file(
-        io.BytesIO(data), mimetype="application/vnd.sqlite3", as_attachment=True,
-        download_name=f"{get_settings()['clinic_name']}-数据备份-{date.today():%Y%m%d}.sqlite3",
-    )

@@ -1,10 +1,12 @@
 import base64
+import json
 import os
 import socket
 import sqlite3
 import threading
 import time
 import urllib.request
+import zipfile
 
 import pytest
 
@@ -77,22 +79,59 @@ def test_save_file_cancelled(api):
 
 def test_backup_and_restore(api, client, db, tmp_path):
     make_patient(client, name="甲")
-    backup = tmp_path / "备份.sqlite3"
-    api._window.dialog_result = str(backup)  # 有的系统返回字符串
-    assert api.backup_database() == str(backup)
-    assert api._window.dialog_calls[0]["save_filename"].endswith(".sqlite3")
+    package = tmp_path / "备份.zip"
+    api._window.dialog_result = str(package)  # 有的系统返回字符串
+    assert api.backup_database() == str(package)
+    assert api._window.dialog_calls[0]["save_filename"].endswith(".zip")
+    with zipfile.ZipFile(package) as zf:
+        assert {"manifest.json", "wenzhen.sqlite3", "data.json", "csv/patients.csv"} <= set(zf.namelist())
 
     make_patient(client, name="乙")
-    api._window.dialog_result = (str(backup),)
-    assert api.choose_backup() == {"ok": True, "path": str(backup), "patients": 1, "visits": 0}
+    api._window.dialog_result = (str(package),)
+    info = api.choose_backup()
+    assert info["ok"] and info["path"] == str(package)
+    assert (info["patients"], info["visits"]) == (1, 0) and info["created_at"]
 
-    result = api.restore_database(str(backup))
+    result = api.restore_database(str(package))
     assert result["ok"] and os.path.exists(result["safety"])
     assert [r[0] for r in db.execute("SELECT name FROM patients")] == ["甲"]
     # 恢复前的数据另存了一份，里面有两位患者
-    saved = sqlite3.connect(result["safety"])
-    assert saved.execute("SELECT COUNT(*) FROM patients").fetchone()[0] == 2
-    saved.close()
+    with zipfile.ZipFile(result["safety"]) as zf:
+        assert json.loads(zf.read("manifest.json"))["counts"]["patients"] == 2
+
+
+def test_save_listed_backup_elsewhere(api, client, tmp_path):
+    make_patient(client)
+    with api._app.app_context():
+        from wenzhen.backup import manual_backup
+        name = os.path.basename(manual_backup())
+    target = tmp_path / "U盘" / "副本.zip"
+    target.parent.mkdir()
+    api._window.dialog_result = (str(target),)
+    assert api.save_backup_copy(name) == str(target)
+    assert target.read_bytes() == (tmp_path / "backups" / name).read_bytes()
+    assert api._window.dialog_calls[-1]["save_filename"].endswith(".zip")
+    assert api.save_backup_copy("../secret.zip") is None
+
+
+def test_choose_mirror_folder(api, client, tmp_path):
+    make_patient(client)
+    usb = tmp_path / "usb"
+    usb.mkdir()
+    api._window.dialog_result = (str(usb),)
+    result = api.choose_mirror_folder()
+    assert result["ok"], result
+    assert list((usb / "问诊记录备份").glob("*.zip"))
+
+    api._window.dialog_result = None
+    assert api.choose_mirror_folder() is None
+
+
+def test_backup_on_exit_updates_todays_backup(api, client, tmp_path):
+    make_patient(client)
+    api._backup_on_exit()
+    today = sorted((tmp_path / "backups").glob("auto-*.zip"))
+    assert len(today) == 1
 
 
 def test_choose_backup_rejects_other_files(api, tmp_path):
@@ -172,22 +211,24 @@ def test_local_server_serves_app(app):
         server.stop()
 
 
-def test_desktop_mode_settings_page(tmp_path):
+def test_desktop_mode_backup_page(tmp_path):
     app = create_app({"TESTING": True, "SECRET_KEY": "t", "CSRF_ENABLED": False,
                       "AUTO_BACKUP": False, "DESKTOP": True}, instance_path=str(tmp_path))
     assert app.config["DATABASE"] == str(tmp_path / "wenzhen.sqlite3")
     client = app.test_client()
     client.post("/setup", data={"clinic_name": "诊所", "username": "a",
                                 "password": "secret1", "password2": "secret1"})
-    page = client.get("/settings").get_data(as_text=True)
-    assert 'data-desktop-action="backup"' in page and 'data-desktop-action="restore"' in page
-    assert "下载完整备份" not in page
-    assert str(tmp_path) in page
+    page = client.get("/backups/").get_data(as_text=True)
+    for action in ("backup", "restore", "choose-mirror", "open-backups"):
+        assert f'data-desktop-action="{action}"' in page
+    assert "下载完整数据包" not in page and "上传并恢复" not in page
+    assert str(tmp_path) in client.get("/settings").get_data(as_text=True)
 
 
-def test_web_mode_settings_page(client):
-    page = client.get("/settings").get_data(as_text=True)
-    assert "下载完整备份" in page and "data-desktop-action" not in page
+def test_web_mode_backup_page(client):
+    page = client.get("/backups/").get_data(as_text=True)
+    assert "下载完整数据包" in page and "上传并恢复" in page
+    assert "data-desktop-action" not in page
 
 
 def test_reset_password_from_command_line(tmp_path, capsys):

@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}数据备份与恢复{% endblock %}
+
+{% macro size(bytes) %}{% if bytes >= 1048576 %}{{ '%.1f'|format(bytes / 1048576) }} MB{% else %}{{ '%.0f'|format(bytes / 1024) }} KB{% endif %}{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>数据备份与恢复</h1>
+    <div class="sub">保存历史数据，换电脑、迁移到其他系统或误操作时都能找回</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('main.settings') }}">返回设置</a>
+  </div>
+</div>
+
+{% if status.remind_offsite %}
+  <div class="alert alert-warning" style="margin-bottom:20px">
+    {% if status.days_since_offsite is none %}
+      还没有把数据备份到这台电脑以外的地方。电脑损坏或丢失时，只存在本机的备份会一起丢失。
+    {% else %}
+      已有 {{ status.days_since_offsite }} 天没有把数据备份到这台电脑以外的地方。
+    {% endif %}
+    建议设置下方的“外部备份文件夹”，或用“导出完整数据包”存到 U 盘。
+  </div>
+{% endif %}
+
+<div class="kpis">
+  <div class="kpi">
+    <div class="label">最近一次备份</div>
+    <div class="value" style="font-size:18px">{{ status.latest.created.strftime('%Y-%m-%d %H:%M') if status.latest else '还没有' }}</div>
+    <div class="note">{{ status.latest.label if status.latest else '今天第一次使用后会自动备份' }}</div>
+  </div>
+  <div class="kpi">
+    <div class="label">本机保存的备份</div>
+    <div class="value">{{ status.count }}<small>份</small></div>
+    <div class="note">共 {{ size(status.total_size) }}</div>
+  </div>
+  <div class="kpi">
+    <div class="label">备份到本机以外</div>
+    <div class="value" style="font-size:18px">{{ status.last_offsite.strftime('%Y-%m-%d %H:%M') if status.last_offsite else '还没有' }}</div>
+    <div class="note">外部文件夹、导出或另存到 U 盘</div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <section class="card" style="margin:0">
+    <h2>备份与导出</h2>
+    <div class="actions" style="margin-bottom:14px">
+      <form class="inline" method="post" action="{{ url_for('backups.backup_now') }}">
+        {{ csrf() }}
+        <button class="btn btn-primary" type="submit">立即备份</button>
+      </form>
+      {% if desktop %}
+        <button type="button" class="btn" data-desktop-action="backup">导出完整数据包…</button>
+      {% else %}
+        <a class="btn" href="{{ url_for('backups.export') }}">下载完整数据包</a>
+      {% endif %}
+    </div>
+    <p class="small"><strong>完整数据包</strong>（.zip）包含：</p>
+    <ul class="small" style="margin:4px 0 10px;padding-left:20px">
+      <li>完整数据库——在本软件中“从备份恢复”，换电脑时使用</li>
+      <li>data.json 和 csv 表格——迁移到其他系统，或用 Excel 查看全部历史数据</li>
+      <li>README.txt 中文说明和校验信息——恢复时自动核对文件是否完好</li>
+    </ul>
+    <p class="muted small">单独导出 Excel 表格：
+      <a href="{{ url_for('main.export_patients') }}" data-download="患者档案.csv">患者档案</a> ·
+      <a href="{{ url_for('main.export_visits') }}" data-download="就诊记录.csv">就诊记录</a></p>
+  </section>
+
+  <section class="card" style="margin:0">
+    <h2>从备份恢复</h2>
+    <p class="small">可以选择本页下方列表中的备份，或者选择 U 盘、其他电脑上的备份文件（.zip 备份包，或 1.1 版的 .sqlite3 文件）。</p>
+    <p class="muted small">恢复会用备份替换当前的全部数据；恢复前，当前数据会先自动另存一份（“恢复前自动保存”）。</p>
+    {% if desktop %}
+      <button type="button" class="btn" data-desktop-action="restore">从备份文件恢复…</button>
+    {% else %}
+      <form method="post" action="{{ url_for('backups.upload') }}" enctype="multipart/form-data"
+            data-confirm="将用所选备份替换当前的全部数据（当前数据会先自动另存一份）。确定恢复吗？" data-confirm-ok="恢复">
+        {{ csrf() }}
+        <div class="search-bar">
+          <input type="file" name="backup" accept=".zip,.sqlite3,.db" required>
+          <button class="btn" type="submit">上传并恢复</button>
+        </div>
+      </form>
+    {% endif %}
+  </section>
+</div>
+
+<section class="card" style="margin-top:20px">
+  <h2>外部备份文件夹</h2>
+  <p class="small">每次自动备份和手动备份后，都会再复制一份到这里。建议选择 <strong>U 盘、移动硬盘</strong>，或百度网盘、坚果云等<strong>网盘的同步文件夹</strong>，电脑损坏时数据也不会丢。</p>
+  {% if status.mirror_root %}
+    <dl class="kv" style="margin:10px 0">
+      <dt>文件夹</dt><dd><code class="path">{{ status.mirror_dir }}</code></dd>
+      <dt>最近同步</dt><dd>{{ status.mirror_ok_at or '还没有成功过' }}</dd>
+      {% if status.mirror_error %}<dt>上次失败</dt><dd class="small" style="color:var(--danger)">{{ status.mirror_error }}</dd>{% endif %}
+    </dl>
+  {% endif %}
+  <div class="actions">
+    {% if desktop %}
+      <button type="button" class="btn {{ 'btn-primary' if not status.mirror_root }}" data-desktop-action="choose-mirror">{{ '更换文件夹…' if status.mirror_root else '选择文件夹…' }}</button>
+    {% else %}
+      <form class="search-bar" method="post" action="{{ url_for('backups.mirror') }}" style="flex:1">
+        {{ csrf() }}
+        <input type="text" name="folder" value="{{ status.mirror_root }}" placeholder="例如：E:\ 或 D:\百度网盘同步" style="flex:1;min-width:240px" aria-label="外部备份文件夹">
+        <button class="btn btn-primary" type="submit">保存</button>
+      </form>
+    {% endif %}
+    {% if status.mirror_root %}
+      <form class="inline" method="post" action="{{ url_for('backups.mirror') }}">
+        {{ csrf() }}
+        <input type="hidden" name="action" value="clear">
+        <button class="btn" type="submit">不再同步</button>
+      </form>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <h2>本机保存的备份（{{ backups|length }}）</h2>
+    {% if desktop %}<button type="button" class="btn btn-sm" data-desktop-action="open-backups">打开备份文件夹</button>{% endif %}
+  </div>
+  <p class="muted small">保留规则：每日自动备份最近 {{ keep_days }} 天全部保留，更早的每个月保留最后一份，长期保存；手动备份和“恢复前自动保存”不会自动删除。
+    {% if desktop %}关闭软件时会用最新数据更新当天的备份。{% endif %}</p>
+  <p class="muted small">位置：<code class="path">{{ backup_folder }}</code></p>
+  {% if backups %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>备份时间</th><th>类型</th><th>内容</th><th class="num">大小</th><th></th></tr></thead>
+        <tbody>
+          {% for b in backups %}
+            <tr>
+              <td class="nowrap">{{ b.created.strftime('%Y-%m-%d %H:%M') }}</td>
+              <td class="nowrap">{{ b.label }}{% if b.full %} <span class="badge badge-first" title="含 JSON 与 CSV，可迁移到其他系统">完整</span>{% endif %}</td>
+              <td class="small">{% if b.counts %}患者 {{ b.counts.patients }} 人 · 就诊 {{ b.counts.visits }} 条{% else %}<span class="muted">—</span>{% endif %}</td>
+              <td class="num small">{{ size(b.size) }}</td>
+              <td class="nowrap">
+                {% if desktop %}
+                  <button type="button" class="btn btn-sm" data-desktop-action="save-copy" data-name="{{ b.name }}">另存到…</button>
+                {% else %}
+                  <a class="btn btn-sm" href="{{ url_for('backups.download', name=b.name) }}">下载</a>
+                {% endif %}
+                <form class="inline" method="post" action="{{ url_for('backups.restore', name=b.name) }}"
+                      data-confirm="将用 {{ b.created.strftime('%Y-%m-%d %H:%M') }} 的备份替换当前的全部数据（当前数据会先自动另存一份）。确定恢复吗？" data-confirm-ok="恢复">
+                  {{ csrf() }}
+                  <button class="btn btn-sm" type="submit">恢复</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty">还没有备份。点“立即备份”，或等今天第一次使用后自动备份。</div>
+  {% endif %}
+</section>
+{% endblock %}

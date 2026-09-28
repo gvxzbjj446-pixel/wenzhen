@@ -12,6 +12,19 @@
   </div>
 </div>
 
+{% if backup_status.remind_offsite or backup_status.mirror_error %}
+  <div class="alert alert-warning" style="margin-bottom:20px">
+    {% if backup_status.mirror_error %}
+      自动复制到外部备份文件夹失败：{{ backup_status.mirror_error }}
+    {% elif backup_status.days_since_offsite is none %}
+      还没有把数据备份到这台电脑以外的地方（U 盘、网盘等）。电脑损坏时，只存在本机的备份会一起丢失。
+    {% else %}
+      已有 {{ backup_status.days_since_offsite }} 天没有把数据备份到这台电脑以外的地方（U 盘、网盘等）。
+    {% endif %}
+    <a href="{{ url_for('backups.index') }}">去备份 →</a>
+  </div>
+{% endif %}
+
 <div class="card">
   <form class="hero-search" method="get" action="{{ url_for('patients.index') }}">
     <input type="search" name="q" placeholder="搜索患者：姓名 / 电话 / 病历号" aria-label="搜索患者" autofocus>

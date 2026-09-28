@@ -1,10 +1,6 @@
-"""SQLite 数据库连接、初始化、系统设置与备份。"""
+"""SQLite 数据库连接、初始化与系统设置。备份相关功能见 backup.py。"""
 
-import os
-import re
 import sqlite3
-from datetime import date, datetime
-from pathlib import Path
 
 import click
 from flask import current_app, g
@@ -114,79 +110,6 @@ def set_setting(key, value):
     )
 
 
-def backup_to(path):
-    """用 SQLite 在线备份接口复制数据库，运行中备份也是一致的。"""
-    target = sqlite3.connect(path)
-    try:
-        get_db().backup(target)
-    finally:
-        target.close()
-
-
-def backup_dir():
-    return os.path.join(current_app.instance_path, "backups")
-
-
-def auto_backup(keep=30):
-    """每天保留一份备份，只保留最近 keep 份。返回新备份路径（今天已备份则返回 None）。"""
-    folder = backup_dir()
-    os.makedirs(folder, exist_ok=True)
-    target = os.path.join(folder, f"wenzhen-{date.today():%Y%m%d}.sqlite3")
-    if os.path.exists(target):
-        return None
-    backup_to(target)
-    # 只清理每日自动备份；手动备份和恢复前的备份不删
-    backups = sorted(name for name in os.listdir(folder) if _DAILY_BACKUP.fullmatch(name))
-    for old in backups[:-keep]:
-        os.remove(os.path.join(folder, old))
-    return target
-
-
-_DAILY_BACKUP = re.compile(r"wenzhen-\d{8}\.sqlite3")
-_REQUIRED_TABLES = {"patients", "visits", "prescription_items", "users"}
-
-
-def _open_readonly(path):
-    return sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)
-
-
-def inspect_backup(path):
-    """检查文件是否为本系统的完好备份，返回 (患者数, 就诊数)；不是则抛出 ValueError。"""
-    try:
-        conn = _open_readonly(path)
-    except sqlite3.Error as exc:
-        raise ValueError("无法打开该文件。") from exc
-    try:
-        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-        if not _REQUIRED_TABLES <= tables:
-            raise ValueError("该文件不是本系统的数据备份。")
-        if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
-            raise ValueError("备份文件已损坏。")
-        patients = conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0]
-        visits = conn.execute("SELECT COUNT(*) FROM visits").fetchone()[0]
-        return patients, visits
-    except sqlite3.DatabaseError as exc:
-        raise ValueError("该文件不是有效的数据库文件。") from exc
-    finally:
-        conn.close()
-
-
-def restore_backup(path):
-    """用备份文件替换当前全部数据。替换前自动把当前数据另存一份，返回该文件路径。"""
-    inspect_backup(path)
-    folder = backup_dir()
-    os.makedirs(folder, exist_ok=True)
-    safety = os.path.join(folder, f"wenzhen-before-restore-{datetime.now():%Y%m%d-%H%M%S}.sqlite3")
-    backup_to(safety)
-    source = _open_readonly(path)
-    try:
-        source.backup(get_db())
-    finally:
-        source.close()
-    init_db()  # 旧版本的备份：补齐新增的列与设置
-    return safety
-
-
 @click.command("set-password")
 @click.argument("username")
 @click.option("--password", prompt="新密码", hide_input=True, confirmation_prompt="再次输入")
@@ -221,13 +144,18 @@ def set_user_password(username, password):
 
 
 @click.command("backup")
+@click.option("--output", type=click.Path(dir_okay=False),
+              help="导出完整数据包到指定文件（.zip）；不指定则保存到备份文件夹")
 @with_appcontext
-def backup_command():
-    """立即备份数据库到 instance/backups/。"""
-    folder = backup_dir()
-    os.makedirs(folder, exist_ok=True)
-    target = os.path.join(folder, f"wenzhen-manual-{date.today():%Y%m%d}.sqlite3")
-    backup_to(target)
+def backup_command(output):
+    """立即备份（完整数据包，含数据库、JSON 和 CSV）。"""
+    from .backup import export_package, manual_backup
+
+    if output:
+        export_package(output)
+        target = output
+    else:
+        target = manual_backup()
     click.echo(f"已备份到 {target}")
 
 

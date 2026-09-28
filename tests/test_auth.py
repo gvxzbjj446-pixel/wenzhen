@@ -120,4 +120,9 @@ def test_set_password_command(app, client, anon):
 def test_backup_command(app, tmp_path):
     result = app.test_cli_runner().invoke(args=["backup"])
     assert result.exit_code == 0
-    assert any(p.name.startswith("wenzhen-manual-") for p in (tmp_path / "backups").iterdir())
+    assert any(p.name.startswith("manual-") and p.suffix == ".zip"
+               for p in (tmp_path / "backups").iterdir())
+
+    target = tmp_path / "导出.zip"
+    result = app.test_cli_runner().invoke(args=["backup", "--output", str(target)])
+    assert result.exit_code == 0 and target.exists()

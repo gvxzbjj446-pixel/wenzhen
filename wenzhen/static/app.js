@@ -222,8 +222,10 @@
     api.choose_backup().then(function (info) {
       if (!info) return;
       if (!info.ok) { toast(info.message, "error"); return; }
-      var message = "将用所选备份替换当前的全部数据。\n\n备份中有患者 " + info.patients +
-        " 人、就诊记录 " + info.visits + " 条。\n当前数据会先自动另存一份，以防万一。\n\n确定恢复吗？";
+      var message = "将用所选备份替换当前的全部数据。\n\n" +
+        (info.created_at ? "备份时间：" + info.created_at + "\n" : "") +
+        "备份中有患者 " + info.patients + " 人、就诊记录 " + info.visits + " 条。\n" +
+        "当前数据会先自动另存一份，以防万一。\n\n确定恢复吗？";
       return confirmDialog(message, { ok: "恢复", danger: true }).then(function (yes) {
         if (!yes) return;
         return api.restore_database(info.path).then(function (result) {
@@ -244,11 +246,22 @@
     e.preventDefault();
     var action = btn.getAttribute("data-desktop-action");
     if (action === "backup") {
-      api.backup_database().then(function (path) { if (path) toast("已备份到：" + path); }).catch(fail);
+      api.backup_database().then(function (path) { if (path) toast("已导出完整数据包：" + path); }).catch(fail);
+    } else if (action === "save-copy") {
+      api.save_backup_copy(btn.getAttribute("data-name"))
+        .then(function (path) { if (path) toast("已另存到：" + path); }).catch(fail);
     } else if (action === "restore") {
       restoreFromBackup();
+    } else if (action === "choose-mirror") {
+      api.choose_mirror_folder().then(function (result) {
+        if (!result) return;
+        try { sessionStorage.setItem("wenzhen-notice", result.message); } catch (err) { /* 忽略 */ }
+        location.reload();
+      }).catch(fail);
     } else if (action === "open-folder") {
       api.open_data_folder().catch(fail);
+    } else if (action === "open-backups") {
+      api.open_backup_folder().catch(fail);
     }
   });
 

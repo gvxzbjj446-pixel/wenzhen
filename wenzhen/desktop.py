@@ -19,10 +19,11 @@ import sys
 import tempfile
 import threading
 import urllib.request
-from datetime import date
+import shutil
+from datetime import datetime
 
-from . import __version__, create_app
-from .db import backup_to, get_settings, inspect_backup, restore_backup, set_user_password
+from . import __version__, backup, create_app
+from .db import get_settings, set_user_password
 
 APP_ID = "WenzhenClinic"
 APP_TITLE = "王艳霞中医门诊"
@@ -63,7 +64,7 @@ LOCALIZATION = {
     "linux.openFolder": "打开文件夹",
 }
 
-BACKUP_FILE_TYPES = ("数据备份 (*.sqlite3;*.db)", "所有文件 (*.*)")
+BACKUP_FILE_TYPES = ("数据备份 (*.zip;*.sqlite3;*.db)", "所有文件 (*.*)")
 
 log = logging.getLogger("wenzhen.desktop")
 
@@ -284,17 +285,33 @@ class DesktopApi:
         return path
 
     def backup_database(self):
-        """把全部数据备份到用户选择的位置（如 U 盘），返回保存路径。"""
-        path = self._ask_save_path(f"{APP_TITLE}-数据备份-{date.today():%Y%m%d}.sqlite3")
+        """导出完整数据包（.zip）到用户选择的位置（如 U 盘），返回保存路径。"""
+        path = self._ask_save_path(self._package_name(datetime.now()))
         if not path:
             return None
         with self._app.app_context():
-            backup_to(path)
-        log.info("已备份到 %s", path)
+            backup.export_package(path)
+        log.info("已导出完整数据包到 %s", path)
+        return path
+
+    def save_backup_copy(self, name):
+        """把备份列表中的某个备份另存到用户选择的位置，返回保存路径。"""
+        with self._app.app_context():
+            source = backup.backup_path(name)
+            info = next((b for b in backup.list_backups() if b["name"] == name), None)
+        if source is None:
+            return None
+        suffix = os.path.splitext(name)[1]
+        path = self._ask_save_path(self._package_name(info["created"] if info else None, suffix))
+        if not path:
+            return None
+        shutil.copyfile(source, path)
+        with self._app.app_context():
+            backup.mark_offsite()
         return path
 
     def choose_backup(self):
-        """选择要恢复的备份文件并检查，返回其中的患者数和就诊数。"""
+        """选择要恢复的备份文件并检查，返回其中的记录数和备份时间。"""
         from webview import FileDialog
         path = _first(self._window.create_file_dialog(
             FileDialog.OPEN, directory=default_save_dir(), file_types=BACKUP_FILE_TYPES,
@@ -302,20 +319,46 @@ class DesktopApi:
         if not path:
             return None
         try:
-            patients, visits = inspect_backup(path)
+            with self._app.app_context():
+                info = backup.inspect_backup(path)
         except ValueError as exc:
             return {"ok": False, "message": str(exc)}
-        return {"ok": True, "path": path, "patients": patients, "visits": visits}
+        created = backup._parse_time(info["created_at"])
+        return {
+            "ok": True, "path": path, "patients": info["patients"], "visits": info["visits"],
+            "created_at": created.strftime("%Y-%m-%d %H:%M") if created else "",
+        }
 
     def restore_database(self, path):
         """用备份文件替换当前数据；替换前的数据会自动另存到备份文件夹。"""
         try:
             with self._app.app_context():
-                safety = restore_backup(path)
+                safety = backup.restore_backup(path)
         except ValueError as exc:
             return {"ok": False, "message": str(exc)}
-        log.info("已从 %s 恢复数据，原数据另存为 %s", path, safety)
         return {"ok": True, "safety": safety}
+
+    def choose_mirror_folder(self):
+        """选择外部备份文件夹（U 盘、网盘同步文件夹等），并立即复制一份备份过去。"""
+        from webview import FileDialog
+        folder = _first(self._window.create_file_dialog(FileDialog.FOLDER, directory=default_save_dir()))
+        if not folder:
+            return None
+        with self._app.app_context():
+            try:
+                copied = backup.set_mirror_root(folder)
+            except ValueError as exc:
+                return {"ok": False, "message": str(exc)}
+            if copied:
+                return {"ok": True, "message": f"已设置，现有备份已同步到 {copied}"}
+            return {"ok": False, "message": f"已设置，但复制失败：{backup.status()['mirror_error']}"}
+
+    def open_backup_folder(self):
+        with self._app.app_context():
+            folder = backup.backup_dir()
+        os.makedirs(folder, exist_ok=True)
+        open_in_file_manager(folder)
+        return True
 
     def open_data_folder(self):
         open_in_file_manager(self._data_dir)
@@ -326,6 +369,20 @@ class DesktopApi:
         self._force_close()
 
     # ---- 程序内部 ----
+
+    def _package_name(self, created=None, suffix=".zip"):
+        with self._app.app_context():
+            clinic = get_settings()["clinic_name"]
+        return f"{clinic}-数据备份-{(created or datetime.now()):%Y%m%d-%H%M}{suffix}"
+
+    def _backup_on_exit(self):
+        """关闭程序时用最新数据更新当天的自动备份，当天的工作也有备份。"""
+        try:
+            with self._app.app_context():
+                path = backup.daily_backup(self._app.config["BACKUP_KEEP_DAYS"], refresh=True)
+            log.info("退出时备份：%s", path or "数据无变化，无需更新")
+        except Exception:
+            log.exception("退出时备份失败")
 
     def _attach(self, window, base_url):
         self._window = window
@@ -383,7 +440,7 @@ class DesktopApi:
     def _menu_backup(self):
         path = self.backup_database()
         if path:
-            self._toast(f"已备份到：{path}")
+            self._toast(f"已导出完整数据包：{path}")
 
     def _menu_restore(self):
         self._run_js("window.wenzhenRestore && wenzhenRestore()")
@@ -401,8 +458,9 @@ def build_menu(api):
         Menu("文件", [
             MenuAction("新患者建档", api._menu_go("/patients/new")),
             MenuSeparator(),
-            MenuAction("备份数据…", api._menu_backup),
+            MenuAction("导出完整数据包…", api._menu_backup),
             MenuAction("从备份恢复…", api._menu_restore),
+            MenuAction("数据备份与恢复", api._menu_go("/backups/")),
             MenuAction("打开数据文件夹", api.open_data_folder),
             MenuSeparator(),
             MenuAction("退出", api._request_close),
@@ -515,6 +573,7 @@ def run(data_dir, args, instance=None):
         localization=LOCALIZATION, debug=args.debug, private_mode=True,
         icon=window_icon(app),
     )
+    api._backup_on_exit()
     server.stop()
     log.info("程序退出")
     return 0 if result["ok"] else 3

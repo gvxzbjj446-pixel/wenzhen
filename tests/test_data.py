@@ -1,6 +1,3 @@
-import os
-from datetime import date
-
 from conftest import make_patient, make_visit
 
 
@@ -40,28 +37,6 @@ def test_export_visits_csv(client):
     assert "砂仁6g（后下）" in text
     filtered = client.get("/export/visits.csv?start=2026-10-01&end=2026-10-31").get_data(as_text=True)
     assert "胃脘胀痛3月" not in filtered
-
-
-def test_backup_download(client):
-    make_patient(client)
-    resp = client.get("/backup")
-    assert resp.status_code == 200
-    assert resp.data.startswith(b"SQLite format 3")
-
-
-def test_auto_backup_keeps_limited_copies(app, tmp_path):
-    from wenzhen.db import auto_backup, backup_dir
-    with app.app_context():
-        folder = backup_dir()
-        os.makedirs(folder)
-        for day in range(1, 6):
-            open(os.path.join(folder, f"wenzhen-202601{day:02d}.sqlite3"), "wb").close()
-        path = auto_backup(keep=3)
-        assert path and os.path.exists(path)
-        assert auto_backup(keep=3) is None  # 同一天不重复备份
-        remaining = sorted(os.listdir(folder))
-    assert len(remaining) == 3
-    assert remaining[-1] == f"wenzhen-{date.today():%Y%m%d}.sqlite3"
 
 
 def test_settings_update(client):
