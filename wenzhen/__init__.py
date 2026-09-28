@@ -1,5 +1,6 @@
 """王艳霞中医门诊 · 问诊记录系统。"""
 
+import mimetypes
 import os
 import secrets
 import threading
@@ -11,11 +12,23 @@ from . import db
 from .security import csrf_protect, csrf_token, set_security_headers
 from .utils import register_template_filters
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
+
+# 界面文件的类型。Windows 上 Python 会从注册表读取文件类型，不少电脑把 .js 登记成
+# text/plain；配合 nosniff 响应头，浏览器会拒绝执行界面脚本（点选项、开方等都没反应）。
+STATIC_TYPES = {
+    ".js": "text/javascript",
+    ".css": "text/css",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+    ".json": "application/json",
+}
 
 
 def create_app(test_config=None, instance_path=None):
     """test_config 为空时读取 instance/config.py；instance_path 指定数据目录（桌面版使用）。"""
+    for extension, mime in STATIC_TYPES.items():
+        mimetypes.add_type(mime, extension)
     app = Flask(__name__, instance_relative_config=True, instance_path=instance_path)
     app.config.from_mapping(
         DATABASE=os.path.join(app.instance_path, "wenzhen.sqlite3"),

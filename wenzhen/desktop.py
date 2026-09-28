@@ -521,10 +521,13 @@ def run(data_dir, args, instance=None):
 
 
 def _check_http(base_url):
-    for path in ("/login", "/static/style.css", "/static/app.js"):
+    expected = {"/login": "text/html", "/static/style.css": "text/css",
+                "/static/app.js": "text/javascript"}
+    for path, mime in expected.items():
         with urllib.request.urlopen(base_url + path, timeout=10) as resp:
-            if resp.status != 200:
-                raise RuntimeError(f"{path} 返回 {resp.status}")
+            content_type = resp.headers.get("Content-Type", "")
+            if resp.status != 200 or not content_type.startswith(mime):
+                raise RuntimeError(f"{path} 返回 {resp.status} {content_type}")
     log.info("自检：网页服务正常")
 
 
@@ -538,8 +541,10 @@ def _smoke_check(window, api, result):
         bridge = window.evaluate_js(
             "!!(window.pywebview && window.pywebview.api && window.pywebview.api.save_file)"
         )
-        log.info("自检：标题=%r 登录表单=%s 本机接口=%s", title, has_form, bridge)
-        result["ok"] = bool(title and "中医" in title and has_form and bridge)
+        # 界面脚本已执行（被浏览器拦截时，点选项、开方等都会失灵）
+        script = window.evaluate_js("typeof window.wenzhenConfirm === 'function'")
+        log.info("自检：标题=%r 登录表单=%s 本机接口=%s 界面脚本=%s", title, has_form, bridge, script)
+        result["ok"] = bool(title and "中医" in title and has_form and bridge and script)
     except Exception:
         log.exception("自检失败")
     finally:
