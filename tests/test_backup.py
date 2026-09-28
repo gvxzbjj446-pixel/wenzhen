@@ -146,13 +146,30 @@ def test_damaged_or_foreign_packages_are_rejected(ctx, tmp_path):
     with pytest.raises(ValueError):
         backup.inspect_backup(str(foreign))
 
-    # 文件损坏
+    # 文件损坏：在整个文件的多个位置各改一个字节，都应给出“损坏”之类的提示，而不是程序出错
+    raw = good.read_bytes()
     broken = tmp_path / "broken.zip"
-    raw = bytearray(good.read_bytes())
-    raw[len(raw) // 2] ^= 0xFF
-    broken.write_bytes(bytes(raw))
+    for i in range(25):
+        damaged = bytearray(raw)
+        damaged[len(raw) * i // 25] ^= 0xFF
+        broken.write_bytes(bytes(damaged))
+        try:
+            info = backup.inspect_backup(str(broken))
+        except ValueError:
+            continue
+        # 改动落在不影响内容的位置（如时间戳）时，备份仍可正常读取
+        assert info["patients"] == 0
+    # 截断的文件
+    broken.write_bytes(raw[: len(raw) // 2])
     with pytest.raises(ValueError):
         backup.inspect_backup(str(broken))
+    # 列表读取损坏的备份时不出错
+    backups_dir = tmp_path / "list"
+    backups_dir.mkdir()
+    damaged = bytearray(raw)
+    damaged[len(raw) // 3] ^= 0xFF
+    (backups_dir / "manual-20260928-101010.zip").write_bytes(bytes(damaged))
+    assert len(backup.list_backups(str(backups_dir))) == 1
 
 
 def test_restore_keeps_machine_settings(app, client, db, tmp_path):

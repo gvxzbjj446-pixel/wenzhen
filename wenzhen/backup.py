@@ -23,6 +23,7 @@ import sqlite3
 import tempfile
 import threading
 import zipfile
+import zlib
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -56,6 +57,9 @@ _NAME_PATTERNS = (
     (re.compile(r"wenzhen-manual-(\d{8})\.sqlite3"), "manual"),
     (re.compile(r"wenzhen-before-restore-(\d{8})-\d{6}\.sqlite3"), "restore"),
 )
+
+# 读取损坏的 zip 时可能出现的各种错误（解压数据损坏时 zlib 抛出的不是 BadZipFile）
+_ZIP_ERRORS = (zipfile.BadZipFile, zlib.error, EOFError, OSError, NotImplementedError)
 
 # 与本机有关的设置：恢复备份时保留当前电脑上的值
 MACHINE_SETTINGS = (
@@ -406,7 +410,7 @@ def open_backup(path, workdir):
                 shutil.copyfileobj(src, dst)
     except KeyError as exc:
         raise ValueError("备份包不完整，缺少必要的文件。") from exc
-    except (zipfile.BadZipFile, ValueError, UnicodeDecodeError, OSError) as exc:
+    except (ValueError, UnicodeDecodeError) + _ZIP_ERRORS as exc:
         if isinstance(exc, ValueError) and str(exc).startswith(("该", "备份")):
             raise
         raise ValueError("备份包已损坏，无法读取。") from exc
@@ -614,7 +618,7 @@ def _read_manifest(path):
     try:
         with zipfile.ZipFile(path) as zf:
             return json.loads(zf.read("manifest.json").decode("utf-8"))
-    except (OSError, KeyError, ValueError, zipfile.BadZipFile):
+    except (KeyError, ValueError) + _ZIP_ERRORS:
         return {}
 
 
