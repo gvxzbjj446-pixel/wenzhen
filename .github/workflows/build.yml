@@ -192,11 +192,37 @@ jobs:
         with:
           name: windows
           path: artifacts
+      - name: 准备版本标签
+        id: target
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          SRC: ${{ steps.tag.outputs.sha }}
+        run: |
+          if [ -n "$(git ls-remote --tags origin "refs/tags/$TAG")" ]; then
+            echo "标签 $TAG 已存在，直接使用"; echo "sha=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          if git diff --quiet "$SRC" "$GITHUB_SHA" -- .github; then
+            echo "sha=$SRC" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # 补发历史版本：GitHub 不允许 Actions 在 .github/workflows 与当前分支不同的提交上建标签，
+          # 因此建一个发布快照：程序文件与该版本完全相同，只有 .github 取自当前分支。
+          git read-tree "$SRC"
+          git rm -r -q --cached --ignore-unmatch .github
+          git read-tree --prefix=.github/ "$GITHUB_SHA:.github"
+          tree=$(git write-tree)
+          test -z "$(git diff --name-only "$SRC" "$tree" -- . ':!.github')"
+          commit=$(git -c user.name="github-actions[bot]" \
+                       -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+                       commit-tree "$tree" -p "$GITHUB_SHA" \
+                       -m "$TAG 发布快照：程序文件与 ${SRC:0:7} 相同，发布流程文件取自 ${GITHUB_SHA:0:7}")
+          git push origin "$commit:refs/tags/$TAG"
+          echo "sha=$commit" >> "$GITHUB_OUTPUT"
       - name: 创建发布（标签不存在时在所打包的提交上创建）
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.tag.outputs.tag }}
-          SHA: ${{ steps.tag.outputs.sha }}
+          SHA: ${{ steps.target.outputs.sha }}
         run: |
           sed "s/{{VERSION}}/${TAG#v}/g" packaging/release-notes.md > notes.md
           # 补发的历史版本不能顶替更新的版本成为“最新版本”
@@ -204,7 +230,7 @@ jobs:
           newest=$(printf '%s\n%s\n' "${latest#v}" "${TAG#v}" | sort -V | tail -n 1)
           if [ -n "$latest" ] && [ "$newest" != "${TAG#v}" ]; then flag=--latest=false; else flag=--latest; fi
           echo "当前最新版本：${latest:-无}；本次发布 $TAG（$flag）"
-          gh release create "$TAG" artifacts/* --repo "$GITHUB_REPOSITORY" --target "$SHA" "$flag" \
+          gh release create "$TAG" artifacts/* --repo "$GITHUB_REPOSITORY" ${SHA:+--target "$SHA"} "$flag" \
             --title "王艳霞中医门诊 $TAG" --notes-file notes.md
 
   release-macos:
@@ -246,5 +272,11 @@ jobs:
             *) echo "::error::“$OLD” 不是版本标签（应形如 v1.1.0）"; exit 1 ;;
           esac
           if [ "$OLD" = "$NEW" ]; then echo "::error::不能删除刚发布的 $NEW"; exit 1; fi
-          gh release delete "$OLD" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag
-          echo "已删除 $OLD 的发布页和标签"
+          if gh release view "$OLD" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release delete "$OLD" --repo "$GITHUB_REPOSITORY" --yes
+            echo "已删除 $OLD 的发布页"
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$OLD" > /dev/null 2>&1; then
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$OLD"
+            echo "已删除标签 $OLD"
+          fi
