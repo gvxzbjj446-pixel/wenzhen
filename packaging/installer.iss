@@ -64,6 +64,10 @@ Filename: "{tmp}\{#WebView2Setup}"; Parameters: "/silent /install"; StatusMsg: "
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
 
 [Messages]
+; 较新版 Inno Setup 新增的提示（复制文件出错时的“重试/取消”）
+chinesesimp.RetryCancelSelectAction=选择操作
+chinesesimp.RetryCancelRetry=重试(&T)
+chinesesimp.RetryCancelCancel=取消
 chinesesimp.FinishedLabel=已完成安装 [name]。%n%n患者数据保存在当前用户的 AppData\Roaming\WenzhenClinic 文件夹中，卸载本软件不会删除这些数据。
 
 [Code]
