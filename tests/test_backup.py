@@ -269,11 +269,22 @@ def test_mirror_copies_and_reports_failures(app, client, tmp_path):
         assert backup.status()["mirror_root"] == ""
 
 
-def test_offsite_reminder(app, client):
+@pytest.mark.parametrize("days_since_offsite", [None, 30])
+def test_offsite_reminder_is_only_on_backup_and_settings_pages(app, client, days_since_offsite):
     with app.app_context():
         assert backup.status()["remind_offsite"] is False   # 还没有数据
     make_patient(client)
-    assert "还没有把数据备份到这台电脑以外" in client.get("/").get_data(as_text=True)
+    with app.app_context():
+        if days_since_offsite is not None:
+            set_setting("last_offsite_backup", (date.today() - timedelta(days=days_since_offsite)).isoformat())
+        assert backup.status()["remind_offsite"] is True
+    home = client.get("/").get_data(as_text=True)
+    assert "备份到这台电脑以外" not in home
+    assert "去备份 →" not in home
+    for path in ("/settings", "/backups/"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert "备份到这台电脑以外" in response.get_data(as_text=True)
     with app.app_context():
         backup.mark_offsite()
         assert backup.status()["remind_offsite"] is False
