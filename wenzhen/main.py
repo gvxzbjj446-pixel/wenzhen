@@ -10,8 +10,9 @@ from flask import (Blueprint, Response, current_app, flash, g, redirect,
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import backup
-from .auth import create_user, validate_new_account, validate_password
-from .db import get_db, get_settings, set_setting
+from .auth import (admin_user, create_user, validate_new_account,
+                   validate_password)
+from .db import ADMIN_DEFAULT_PASSWORD, get_db, get_settings, set_setting
 from .fields import FIELD_LABELS, VISIT_TEXT_FIELDS
 from .records import due_followups, items_for_visits
 from .utils import age_text, herb_text, parse_date, record_no
@@ -239,13 +240,24 @@ def account():
     users = conn.execute(
         "SELECT id, username, display_name, created_at FROM users ORDER BY id"
     ).fetchall()
-    return render_template("account.html", users=users, errors=errors)
+    admin = admin_user()
+    admin_default = admin is not None and check_password_hash(
+        conn.execute("SELECT password_hash FROM users WHERE id = ?", (admin["id"],))
+        .fetchone()["password_hash"], ADMIN_DEFAULT_PASSWORD,
+    )
+    return render_template(
+        "account.html", users=users, errors=errors, admin=admin,
+        admin_default_password=admin_default,
+    )
 
 
 @bp.route("/account/users/<int:user_id>/delete", methods=("POST",))
 def delete_user(user_id):
+    admin = admin_user()
     if user_id == g.user["id"]:
         flash("不能删除当前登录的账户。", "error")
+    elif admin is not None and user_id == admin["id"]:
+        flash("系统管理员账户不能删除。", "error")
     else:
         conn = get_db()
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))

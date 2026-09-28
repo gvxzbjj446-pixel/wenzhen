@@ -11,7 +11,7 @@ def test_setup_creates_account_and_logs_in(client, db):
     resp = client.get("/")
     assert resp.status_code == 200
     assert "工作台" in resp.get_data(as_text=True)
-    assert db.execute("SELECT username FROM users").fetchone()["username"] == "wang"
+    assert db.execute("SELECT username FROM users ORDER BY id").fetchone()["username"] == "wang"
 
 
 def test_setup_is_closed_once_account_exists(client, anon):
@@ -101,7 +101,47 @@ def test_change_password_and_manage_users(client, anon):
 def test_cannot_delete_self(client, db):
     me = db.execute("SELECT id FROM users WHERE username = 'wang'").fetchone()["id"]
     client.post(f"/account/users/{me}/delete")
-    assert db.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 1
+    assert db.execute("SELECT 1 FROM users WHERE id = ?", (me,)).fetchone()
+
+
+def test_admin_account_created_with_setup(client, anon, db):
+    admin = db.execute("SELECT display_name FROM users WHERE username = 'admin'").fetchone()
+    assert admin["display_name"] == "系统管理员"
+    resp = anon.post("/login", data={"username": "admin", "password": "888888"})
+    assert resp.status_code == 302 and resp.headers["Location"] == "/"
+    page = anon.get("/account").get_data(as_text=True)
+    assert "系统管理员" in page and "888888" in page
+
+    # 修改初始密码后不再提示
+    anon.post("/account", data={
+        "action": "password", "old_password": "888888",
+        "new_password": "admin999", "new_password2": "admin999",
+    })
+    assert "888888" not in anon.get("/account").get_data(as_text=True)
+
+
+def test_admin_account_cannot_be_deleted(client, db):
+    admin_id = db.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()["id"]
+    resp = client.post(f"/account/users/{admin_id}/delete")
+    client.get(resp.headers["Location"])
+    assert db.execute("SELECT 1 FROM users WHERE id = ?", (admin_id,)).fetchone()
+
+
+def test_admin_account_added_to_existing_install(app, client, anon, db):
+    # 模拟升级前的数据库：只有医师账户
+    db.execute("DELETE FROM users WHERE username = 'admin'")
+    db.commit()
+    create_app({
+        "TESTING": True, "SECRET_KEY": "x", "AUTO_BACKUP": False,
+        "DATABASE": app.config["DATABASE"],
+    })
+    assert db.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'").fetchone()[0] == 1
+    assert anon.post("/login", data={"username": "admin", "password": "888888"}).status_code == 302
+
+
+def test_no_admin_before_first_setup(anon, db):
+    anon.get("/")
+    assert db.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0
 
 
 def test_set_password_command(app, client, anon):

@@ -21,6 +21,11 @@ DEFAULT_SETTINGS = {
     "default_dose_count": "7",
 }
 
+# 系统管理员账户：完成首次设置时与医师账户一并建立，不可删除
+ADMIN_USERNAME = "admin"
+ADMIN_DISPLAY_NAME = "系统管理员"
+ADMIN_DEFAULT_PASSWORD = "888888"
+
 
 def connect(path):
     conn = sqlite3.connect(path)
@@ -51,6 +56,7 @@ def init_db():
         "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
         DEFAULT_SETTINGS.items(),
     )
+    ensure_admin(conn)
     # 示例方剂只写入一次；医师删掉后不会再出现
     if get_setting("formulas_seeded") != "1":
         _seed_formulas(conn)
@@ -65,6 +71,20 @@ def _add_missing_visit_columns(conn):
     for key in VISIT_TEXT_FIELDS:
         if key not in existing:
             conn.execute(f"ALTER TABLE visits ADD COLUMN {key} TEXT NOT NULL DEFAULT ''")
+
+
+def ensure_admin(conn):
+    """已有账户（完成首次设置）后，确保系统管理员账户存在，初始密码 888888。返回其 id。"""
+    row = conn.execute("SELECT id FROM users WHERE username = ?", (ADMIN_USERNAME,)).fetchone()
+    if row:
+        return row["id"]
+    if conn.execute("SELECT 1 FROM users LIMIT 1").fetchone() is None:
+        return None  # 首次使用，先进入设置页建立医师账户
+    cur = conn.execute(
+        "INSERT INTO users (username, display_name, password_hash) VALUES (?, ?, ?)",
+        (ADMIN_USERNAME, ADMIN_DISPLAY_NAME, generate_password_hash(ADMIN_DEFAULT_PASSWORD)),
+    )
+    return cur.lastrowid
 
 
 def _seed_formulas(conn):
