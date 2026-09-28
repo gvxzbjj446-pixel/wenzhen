@@ -11,9 +11,18 @@ on:
         description: "构建通过后发布正式版本（按 wenzhen/__init__.py 中的版本号创建 v 标签和发布页）"
         type: boolean
         default: false
+      source_ref:
+        description: "要打包的提交或标签（留空为所选分支的最新提交；补发历史版本时填写该版本的提交）"
+        type: string
+        default: ""
+      remove_release:
+        description: "要删除的旧版本标签（如 v1.1.0），发布页和标签一并删除；勾选了发布时，新版本发布成功后才删除"
+        type: string
+        default: ""
 
+# 手动运行（发布）与推送触发的构建分开排队，互不取消
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:
@@ -25,6 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -38,6 +49,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -123,6 +136,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -162,9 +177,12 @@ jobs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
       - name: 确定版本标签
         id: tag
         run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' wenzhen/__init__.py)
           if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "v$version" != "$GITHUB_REF_NAME" ]; then
             echo "::error::标签 $GITHUB_REF_NAME 与程序版本 $version 不一致"; exit 1
@@ -174,13 +192,19 @@ jobs:
         with:
           name: windows
           path: artifacts
-      - name: 创建发布（标签不存在时在当前提交上创建）
+      - name: 创建发布（标签不存在时在所打包的提交上创建）
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.tag.outputs.tag }}
+          SHA: ${{ steps.tag.outputs.sha }}
         run: |
           sed "s/{{VERSION}}/${TAG#v}/g" packaging/release-notes.md > notes.md
-          gh release create "$TAG" artifacts/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+          # 补发的历史版本不能顶替更新的版本成为“最新版本”
+          latest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName 2>/dev/null || true)
+          newest=$(printf '%s\n%s\n' "${latest#v}" "${TAG#v}" | sort -V | tail -n 1)
+          if [ -n "$latest" ] && [ "$newest" != "${TAG#v}" ]; then flag=--latest=false; else flag=--latest; fi
+          echo "当前最新版本：${latest:-无}；本次发布 $TAG（$flag）"
+          gh release create "$TAG" artifacts/* --repo "$GITHUB_REPOSITORY" --target "$SHA" "$flag" \
             --title "王艳霞中医门诊 $TAG" --notes-file notes.md
 
   release-macos:
@@ -199,3 +223,28 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.release.outputs.tag }}
         run: gh release upload "$TAG" artifacts/* --repo "$GITHUB_REPOSITORY" --clobber
+
+  # 删除旧版本（发布页与标签）。同时发布新版本时，新版本发布成功后才删除。
+  remove-release:
+    name: 删除旧版本
+    needs: release
+    if: >-
+      always() && github.event_name == 'workflow_dispatch' && inputs.remove_release != '' &&
+      (needs.release.result == 'success' || !inputs.release)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: 删除发布页和标签
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OLD: ${{ inputs.remove_release }}
+          NEW: ${{ needs.release.outputs.tag }}
+        run: |
+          case "$OLD" in
+            v[0-9]*) ;;
+            *) echo "::error::“$OLD” 不是版本标签（应形如 v1.1.0）"; exit 1 ;;
+          esac
+          if [ "$OLD" = "$NEW" ]; then echo "::error::不能删除刚发布的 $NEW"; exit 1; fi
+          gh release delete "$OLD" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag
+          echo "已删除 $OLD 的发布页和标签"
