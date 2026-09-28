@@ -150,6 +150,12 @@ def webview2_available():
     return winforms.renderer == "edgechromium"
 
 
+def window_icon(app):
+    # Windows 窗口图标由 .NET 的 System.Drawing.Icon 读取，只接受 .ico；传入 PNG 会使程序崩溃
+    name = "icon.ico" if sys.platform == "win32" else "icon.png"
+    return os.path.join(app.static_folder, name)
+
+
 def _first(result):
     """文件对话框在不同系统上返回字符串或元组，取第一个路径。"""
     if not result:
@@ -166,14 +172,23 @@ class LocalServer:
         from waitress import create_server
         self._server = create_server(app, host="127.0.0.1", port=0, threads=4)
         self.url = f"http://127.0.0.1:{self._server.effective_port}"
-        self._thread = threading.Thread(target=self._server.run, name="wenzhen-server", daemon=True)
+        self._stopping = False
+        self._thread = threading.Thread(target=self._serve, name="wenzhen-server", daemon=True)
 
     def start(self):
         self._thread.start()
         return self
 
     def stop(self):
+        self._stopping = True
         self._server.close()
+
+    def _serve(self):
+        try:
+            self._server.run()
+        except OSError:
+            if not self._stopping:  # 退出时关闭监听端口会中断事件循环，属正常情况
+                raise
 
 
 class SingleInstance:
@@ -426,7 +441,7 @@ def main(argv=None):
         args.data_dir = tempfile.mkdtemp(prefix="wenzhen-smoke-")
     data_dir = os.path.abspath(args.data_dir or user_data_dir())
     os.makedirs(data_dir, exist_ok=True)
-    log_path = setup_logging(data_dir, args.debug)
+    log_path = setup_logging(data_dir, args.debug or args.smoke_test)
     log.info("启动 %s %s，数据目录：%s", APP_TITLE, __version__, data_dir)
     if args.reset_password:
         return reset_password(data_dir, *args.reset_password)
@@ -498,7 +513,7 @@ def run(data_dir, args, instance=None):
         _smoke_check if args.smoke_test else None,
         (window, api, result) if args.smoke_test else None,
         localization=LOCALIZATION, debug=args.debug, private_mode=True,
-        icon=os.path.join(app.static_folder, "icon.png"),
+        icon=window_icon(app),
     )
     server.stop()
     log.info("程序退出")

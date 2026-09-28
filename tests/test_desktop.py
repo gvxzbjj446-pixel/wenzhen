@@ -202,3 +202,12 @@ def test_reset_password_from_command_line(tmp_path, capsys):
                       "AUTO_BACKUP": False}, instance_path=data)
     resp = app.test_client().post("/login", data={"username": "wang", "password": "another2"})
     assert resp.status_code == 302
+
+
+def test_window_icon_matches_platform(app, monkeypatch):
+    monkeypatch.setattr(desktop.sys, "platform", "win32")
+    assert desktop.window_icon(app).endswith("icon.ico")
+    monkeypatch.setattr(desktop.sys, "platform", "darwin")
+    assert desktop.window_icon(app).endswith("icon.png")
+    for name in ("icon.ico", "icon.png"):
+        assert os.path.isfile(os.path.join(app.static_folder, name))

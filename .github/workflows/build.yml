@@ -43,8 +43,6 @@ jobs:
         id: version
         shell: bash
         run: echo "version=$(python -c 'import wenzhen; print(wenzhen.__version__)')" >> "$GITHUB_OUTPUT"
-      - name: 打包程序
-        run: pyinstaller --noconfirm --clean packaging/wenzhen.spec
       - name: 下载 WebView2 运行库安装程序（随安装包附带）
         shell: pwsh
         run: |
@@ -54,6 +52,16 @@ jobs:
             Write-Host "测试机没有 WebView2，先安装"
             Start-Process packaging\MicrosoftEdgeWebview2Setup.exe -ArgumentList "/silent", "/install" -Wait
           }
+      - name: 从源码运行冒烟测试（与打包后的程序对照）
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP "smoke-source"
+          $p = Start-Process -FilePath python -ArgumentList "-m", "wenzhen", "--smoke-test", "--data-dir", $dir -PassThru -Wait -NoNewWindow
+          Get-Content (Join-Path $dir "logs\wenzhen.log") -Encoding utf8
+          if ($p.ExitCode -ne 0) { throw "从源码运行失败，退出码 $($p.ExitCode)" }
+      - name: 打包程序
+        run: pyinstaller --noconfirm --clean packaging/wenzhen.spec
       - name: 冒烟测试：打开窗口、检查页面后自动退出
         timeout-minutes: 5
         shell: pwsh
@@ -89,6 +97,13 @@ jobs:
       - name: 绿色版压缩包（免安装）
         shell: pwsh
         run: Compress-Archive -Path dist\Wenzhen -DestinationPath "dist\WenzhenClinic-Portable-${{ steps.version.outputs.version }}-Windows.zip"
+      - name: 故障诊断：系统事件日志中的程序崩溃记录
+        if: failure()
+        shell: pwsh
+        run: |
+          Get-WinEvent -FilterHashtable @{ LogName = "Application"; StartTime = (Get-Date).AddMinutes(-30) } -ErrorAction SilentlyContinue |
+            Where-Object { $_.ProviderName -in ".NET Runtime", "Application Error", "Windows Error Reporting" } |
+            Select-Object -First 6 | Format-List TimeCreated, ProviderName, Message
       - uses: actions/upload-artifact@v4
         with:
           name: windows

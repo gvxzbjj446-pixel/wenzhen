@@ -38,8 +38,10 @@ def main(font_path):
     img.resize((512, 512), Image.LANCZOS).save(os.path.join(assets, "icon.png"))
     img.resize((256, 256), Image.LANCZOS).save(
         os.path.join(ROOT, "wenzhen", "static", "icon.png"))
-    img.save(os.path.join(assets, "icon.ico"),
-             sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+    ico_sizes = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+    img.save(os.path.join(assets, "icon.ico"), sizes=ico_sizes)
+    # 桌面版窗口图标：Windows 只接受 .ico；用 BMP 帧，兼容各版本 .NET
+    img.save(os.path.join(ROOT, "wenzhen", "static", "icon.ico"), sizes=ico_sizes[:5], bitmap_format="bmp")
     img.save(os.path.join(assets, "icon.icns"))
     print("已生成图标：", assets)
 
