@@ -23,7 +23,7 @@
 
 ### Windows（推荐）
 
-1. 下载 **`WenzhenClinic-Setup-版本号.exe`**（在本仓库的 Releases 页面，或 Actions 中最近一次“测试与打包”运行的 `windows` 附件里）。
+1. 到 [Releases 下载页](https://github.com/gvxzbjj446-pixel/wenzhen/releases/latest) 下载 **`WenzhenClinic-Setup-版本号.exe`**。
 2. 双击运行安装程序 → 下一步 → 完成。不需要管理员权限，也不需要安装 Python。
 3. 桌面和开始菜单会出现 **「王艳霞中医门诊」** 图标，双击即可打开。
 
@@ -33,7 +33,7 @@
 
 ### macOS
 
-下载 `WenzhenClinic-版本号-macOS.zip`，解压后把「王艳霞中医门诊」拖到“应用程序”。
+在同一下载页下载 `WenzhenClinic-版本号-macOS.zip`，解压后把「王艳霞中医门诊」拖到“应用程序”。
 （适用于 Apple 芯片的 Mac；软件未经苹果公证，首次打开请在访达中右键 → 打开。）
 
 ### 首次使用
@@ -143,5 +143,8 @@ iscc /DAppVersion=1.1.0 packaging/installer.iss             # Windows：生成�
 ```
 
 推送代码后，GitHub Actions（`.github/workflows/build.yml`）会自动：运行测试 → 在 Windows、macOS 上打包 →
-打开窗口做自检 → 静默安装后再自检 → 上传安装包。推送 `v` 开头的标签（如 `v1.1.0`）时自动发布到 Releases。
+打开窗口做自检 → 静默安装后再自检 → 上传安装包。
+
+**发布新版本**：修改 `wenzhen/__init__.py` 中的版本号并提交，然后推送同名标签（如 `git tag v1.2.0 && git push origin v1.2.0`），
+Windows 安装包测试通过后自动发布到 Releases 页面（说明文字来自 `packaging/release-notes.md`），macOS 版构建完成后自动附上。
 版本号在 `wenzhen/__init__.py` 中修改；图标由 `packaging/make_icon.py` 生成。

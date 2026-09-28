@@ -143,19 +143,48 @@ jobs:
           path: dist/WenzhenClinic-*-macOS.zip
           if-no-files-found: error
 
+  # 发布分两步：Windows 安装包测试通过即发布；macOS 版构建完成后再附到同一发布页，
+  # 这样 macOS 构建机排队时不会耽误 Windows 版发布。
   release:
-    name: 发布
+    name: 发布（Windows）
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [windows, macos]
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: 核对版本号
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' wenzhen/__init__.py)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::标签 $GITHUB_REF_NAME 与程序版本 $version 不一致"; exit 1
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows
+          path: artifacts
+      - name: 创建发布
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sed "s/{{VERSION}}/${GITHUB_REF_NAME#v}/g" packaging/release-notes.md > notes.md
+          gh release create "$GITHUB_REF_NAME" artifacts/* --repo "$GITHUB_REPOSITORY" \
+            --title "王艳霞中医门诊 ${GITHUB_REF_NAME}" --notes-file notes.md --verify-tag
+
+  release-macos:
+    name: 发布（附上 macOS 版）
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, release]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
+          name: macos
           path: artifacts
-          merge-multiple: true
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/*
-          generate_release_notes: true
+      - name: 上传到发布页
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" artifacts/* --repo "$GITHUB_REPOSITORY" --clobber
