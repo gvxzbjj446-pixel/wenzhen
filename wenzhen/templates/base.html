@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{% endblock %} · {{ clinic.clinic_name }}</title>
+  <link rel="icon" href="{{ url_for('static', filename='icon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -24,9 +25,9 @@
     </nav>
     <div class="userbox">
       <a href="{{ url_for('main.account') }}">{{ g.user.display_name or g.user.username }}</a>
-      <form method="post" action="{{ url_for('auth.logout') }}">
+      <form method="post" action="{{ url_for('auth.logout') }}" data-logout>
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <button class="link-btn" type="submit">退出</button>
+        <button class="link-btn" type="submit">退出登录</button>
       </form>
     </div>
   </header>

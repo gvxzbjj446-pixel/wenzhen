@@ -12,10 +12,78 @@
     return String(Math.round(n * 100) / 100);
   }
 
+  /* 桌面版由 pywebview 提供本机功能接口；在浏览器中打开时为空 */
+  function desktopApi() {
+    return window.pywebview && window.pywebview.api;
+  }
+
+  /* ---------- 页面底部提示条 ---------- */
+  function toast(message, kind) {
+    var box = document.createElement("div");
+    box.className = "toast" + (kind === "error" ? " toast-error" : "");
+    box.setAttribute("role", "status");
+    box.textContent = message;
+    document.body.appendChild(box);
+    setTimeout(function () { box.classList.add("show"); }, 10);
+    setTimeout(function () {
+      box.classList.remove("show");
+      setTimeout(function () { box.remove(); }, 300);
+    }, kind === "error" ? 6000 : 4000);
+  }
+  window.wenzhenToast = toast;
+
+  function fail() { toast("操作失败，请重试。", "error"); }
+
+  /* ---------- 确认对话框（代替浏览器自带的 confirm 弹窗） ---------- */
+  function confirmDialog(message, options) {
+    options = options || {};
+    return new Promise(function (resolve) {
+      var overlay = document.createElement("div");
+      overlay.className = "modal-overlay";
+      overlay.innerHTML =
+        '<div class="modal" role="alertdialog" aria-modal="true">' +
+        '<p class="modal-message"></p><div class="modal-actions">' +
+        '<button type="button" class="btn" data-answer="no"></button>' +
+        '<button type="button" class="btn" data-answer="yes"></button></div></div>';
+      overlay.querySelector(".modal-message").textContent = message;
+      var yes = overlay.querySelector('[data-answer="yes"]');
+      var no = overlay.querySelector('[data-answer="no"]');
+      yes.textContent = options.ok || "确定";
+      yes.classList.add(options.danger ? "btn-danger-solid" : "btn-primary");
+      no.textContent = options.cancel || "取消";
+
+      function close(answer) {
+        document.removeEventListener("keydown", onKey, true);
+        overlay.remove();
+        resolve(answer);
+      }
+      function onKey(e) {
+        if (e.key === "Escape") { e.preventDefault(); close(false); }
+      }
+      overlay.addEventListener("click", function (e) {
+        var answer = e.target.getAttribute("data-answer");
+        if (answer) close(answer === "yes");
+        else if (e.target === overlay) close(false);
+      });
+      document.addEventListener("keydown", onKey, true);
+      document.body.appendChild(overlay);
+      (options.danger ? no : yes).focus();
+    });
+  }
+  window.wenzhenConfirm = confirmDialog;
+
   /* ---------- 删除等危险操作二次确认 ---------- */
   document.addEventListener("submit", function (e) {
-    var msg = e.target.getAttribute("data-confirm");
-    if (msg && !window.confirm(msg)) e.preventDefault();
+    var form = e.target;
+    var msg = form.getAttribute("data-confirm");
+    if (!msg || form.dataset.confirmed) return;
+    e.preventDefault();
+    confirmDialog(msg, { ok: form.getAttribute("data-confirm-ok") || "删除", danger: true })
+      .then(function (yes) {
+        if (!yes) return;
+        form.dataset.confirmed = "1";
+        form.submit();
+      });
   });
 
   /* ---------- 快选标签：点击填入，再点取消 ---------- */
@@ -76,13 +144,132 @@
   });
 
   /* ---------- 未保存离开提醒 ---------- */
+  var dirty = false;
+  var UNSAVED = "当前填写的内容还没有保存，";
+
+  function setDirty(value) {
+    dirty = value;
+    var api = desktopApi();
+    if (api && api.set_dirty) api.set_dirty(value);
+  }
+
   document.querySelectorAll("form[data-dirty-guard]").forEach(function (form) {
-    var dirty = false;
-    form.addEventListener("input", function () { dirty = true; });
-    form.addEventListener("submit", function () { dirty = false; });
-    window.addEventListener("beforeunload", function (e) {
-      if (dirty) { e.preventDefault(); e.returnValue = ""; }
+    form.addEventListener("input", function () { if (!dirty) setDirty(true); });
+    form.addEventListener("submit", function () { setDirty(false); });
+  });
+  window.addEventListener("pywebviewready", function () { setDirty(dirty); });
+  window.addEventListener("beforeunload", function (e) {
+    if (dirty) { e.preventDefault(); e.returnValue = ""; }
+  });
+
+  // 点击站内链接离开时，用对话框确认
+  document.addEventListener("click", function (e) {
+    if (!dirty || e.defaultPrevented) return;
+    var link = e.target.closest("a[href]");
+    if (!link || link.target || link.hasAttribute("data-download") ||
+        link.getAttribute("href").charAt(0) === "#") return;
+    e.preventDefault();
+    confirmDialog(UNSAVED + "确定要离开吗？", { ok: "离开", cancel: "继续填写", danger: true })
+      .then(function (yes) {
+        if (!yes) return;
+        setDirty(false);
+        location.href = link.href;
+      });
+  });
+
+  // 桌面版关闭窗口时调用
+  window.wenzhenConfirmQuit = function () {
+    confirmDialog(UNSAVED + "确定要退出吗？", { ok: "退出", cancel: "继续填写", danger: true })
+      .then(function (yes) { if (yes) desktopApi().confirm_quit(); });
+  };
+
+  /* ---------- 桌面版：导出文件用“另存为”对话框保存 ---------- */
+  function filenameFrom(disposition) {
+    var m = /filename\*=UTF-8''([^;]+)/i.exec(disposition || "");
+    if (m) return decodeURIComponent(m[1]);
+    m = /filename="?([^";]+)"?/i.exec(disposition || "");
+    return m ? m[1] : "";
+  }
+
+  function blobToDataURL(blob) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(reader.result); };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
     });
+  }
+
+  document.addEventListener("click", function (e) {
+    var link = e.target.closest("a[data-download]");
+    var api = desktopApi();
+    if (!link || !api) return;  // 浏览器中照常下载
+    e.preventDefault();
+    fetch(link.href, { credentials: "same-origin" })
+      .then(function (resp) {
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        var name = filenameFrom(resp.headers.get("Content-Disposition")) || link.getAttribute("data-download");
+        return resp.blob().then(blobToDataURL).then(function (data) { return api.save_file(name, data); });
+      })
+      .then(function (path) { if (path) toast("已保存到：" + path); })
+      .catch(fail);
+  });
+
+  /* ---------- 桌面版：备份、恢复、打开数据文件夹 ---------- */
+  function restoreFromBackup() {
+    var api = desktopApi();
+    if (!api) return;
+    api.choose_backup().then(function (info) {
+      if (!info) return;
+      if (!info.ok) { toast(info.message, "error"); return; }
+      var message = "将用所选备份替换当前的全部数据。\n\n备份中有患者 " + info.patients +
+        " 人、就诊记录 " + info.visits + " 条。\n当前数据会先自动另存一份，以防万一。\n\n确定恢复吗？";
+      return confirmDialog(message, { ok: "恢复", danger: true }).then(function (yes) {
+        if (!yes) return;
+        return api.restore_database(info.path).then(function (result) {
+          if (!result.ok) { toast(result.message, "error"); return; }
+          try { sessionStorage.setItem("wenzhen-notice", "数据已恢复，请重新登录。"); } catch (err) { /* 忽略 */ }
+          var logout = document.querySelector("form[data-logout]");
+          if (logout) logout.submit(); else location.href = "/";
+        });
+      });
+    }).catch(fail);
+  }
+  window.wenzhenRestore = restoreFromBackup;
+
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-desktop-action]");
+    var api = desktopApi();
+    if (!btn || !api) return;
+    e.preventDefault();
+    var action = btn.getAttribute("data-desktop-action");
+    if (action === "backup") {
+      api.backup_database().then(function (path) { if (path) toast("已备份到：" + path); }).catch(fail);
+    } else if (action === "restore") {
+      restoreFromBackup();
+    } else if (action === "open-folder") {
+      api.open_data_folder().catch(fail);
+    }
+  });
+
+  try {
+    var notice = sessionStorage.getItem("wenzhen-notice");
+    if (notice) {
+      sessionStorage.removeItem("wenzhen-notice");
+      toast(notice);
+    }
+  } catch (err) { /* 浏览器禁用存储时忽略 */ }
+
+  /* ---------- 快捷键：F5 刷新、Ctrl+P 打印（桌面版窗口没有浏览器快捷键） ---------- */
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "F5" && desktopApi()) {
+      e.preventDefault();
+      location.reload();
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === "p" || e.key === "P") &&
+               document.querySelector("[data-print]")) {
+      e.preventDefault();
+      window.print();
+    }
   });
 
   /* ---------- 处方编辑器 ---------- */
@@ -243,24 +430,30 @@
     });
 
     var select = root.querySelector("[data-formula-select]");
+
+    function applyFormula(formula, replace) {
+      if (replace) tbody.innerHTML = "";
+      addItems(formula.items);
+      if (!rows().length) addRow();
+      var nameInput = form && form.querySelector('[name="formula_name"]');
+      if (nameInput && (replace || !nameInput.value.trim())) nameInput.value = formula.name;
+      else if (nameInput && nameInput.value.indexOf(formula.name) < 0) nameInput.value += "合" + formula.name;
+      var usageInput = form && form.querySelector('[name="usage"]');
+      if (usageInput && formula.usage && !usageInput.value.trim()) usageInput.value = formula.usage;
+      if (form) form.dispatchEvent(new Event("input"));
+    }
+
     root.querySelectorAll("[data-formula-apply]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var formula = formulas.filter(function (f) { return String(f.id) === select.value; })[0];
         if (!formula) { select.focus(); return; }
         var replace = btn.dataset.formulaApply === "replace";
-        if (replace) {
-          if (rows().some(function (r) { return !isBlank(r); }) &&
-              !window.confirm("将用「" + formula.name + "」替换当前处方中的全部药物，确定吗？")) return;
-          tbody.innerHTML = "";
+        if (!replace || !rows().some(function (r) { return !isBlank(r); })) {
+          applyFormula(formula, replace);
+          return;
         }
-        addItems(formula.items);
-        if (!rows().length) addRow();
-        var nameInput = form && form.querySelector('[name="formula_name"]');
-        if (nameInput && (replace || !nameInput.value.trim())) nameInput.value = formula.name;
-        else if (nameInput && nameInput.value.indexOf(formula.name) < 0) nameInput.value += "合" + formula.name;
-        var usageInput = form && form.querySelector('[name="usage"]');
-        if (usageInput && formula.usage && !usageInput.value.trim()) usageInput.value = formula.usage;
-        if (form) form.dispatchEvent(new Event("input"));
+        confirmDialog("将用「" + formula.name + "」替换当前处方中的全部药物，确定吗？", { ok: "替换" })
+          .then(function (yes) { if (yes) applyFormula(formula, true); });
       });
     });
 

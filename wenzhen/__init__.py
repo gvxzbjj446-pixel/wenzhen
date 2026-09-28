@@ -11,9 +11,12 @@ from . import db
 from .security import csrf_protect, csrf_token, set_security_headers
 from .utils import register_template_filters
 
+__version__ = "1.1.0"
 
-def create_app(test_config=None):
-    app = Flask(__name__, instance_relative_config=True)
+
+def create_app(test_config=None, instance_path=None):
+    """test_config 为空时读取 instance/config.py；instance_path 指定数据目录（桌面版使用）。"""
+    app = Flask(__name__, instance_relative_config=True, instance_path=instance_path)
     app.config.from_mapping(
         DATABASE=os.path.join(app.instance_path, "wenzhen.sqlite3"),
         PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
@@ -21,6 +24,7 @@ def create_app(test_config=None):
         CSRF_ENABLED=True,
         AUTO_BACKUP=True,   # 每天首次访问时自动备份数据库
         BACKUP_KEEP=30,     # 自动备份保留份数
+        DESKTOP=False,      # 桌面版：显示“备份到…”“打开数据文件夹”等本机功能
     )
     if test_config is None:
         app.config.from_pyfile("config.py", silent=True)

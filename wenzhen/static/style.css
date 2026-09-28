@@ -487,6 +487,53 @@ table.herb-table { width: 100%; border-collapse: collapse; }
 
 .ranges { display: flex; flex-wrap: wrap; gap: 6px; }
 
+/* ---------- 对话框与提示条 ---------- */
+
+.btn-danger-solid { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn-danger-solid:hover { background: #962019; }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(42, 37, 33, .35);
+}
+.modal {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(42, 37, 33, .25);
+  padding: 22px 22px 16px;
+}
+.modal-message { white-space: pre-line; font-size: 15px; margin: 0 0 18px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 110;
+  max-width: min(640px, calc(100vw - 32px));
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: #fff;
+  font-size: 14px;
+  box-shadow: 0 6px 20px rgba(42, 37, 33, .25);
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition: opacity .2s, transform .2s;
+  word-break: break-all;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast-error { background: var(--danger); }
+
+code.path { word-break: break-all; font-size: 13px; }
+
 /* ---------- 登录页 ---------- */
 
 .auth-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }

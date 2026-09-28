@@ -8,7 +8,7 @@
     <div class="sub">{{ start }}{% if end != start %} 至 {{ end }}{% endif %} · 共 {{ visits|length }} 人次 · 收费 ¥{{ total_fee|money }}</div>
   </div>
   <div class="actions">
-    <a class="btn" href="{{ url_for('main.export_visits', start=start, end=end) }}">导出 Excel（CSV）</a>
+    <a class="btn" href="{{ url_for('main.export_visits', start=start, end=end) }}" data-download="就诊记录.csv">导出 Excel（CSV）</a>
   </div>
 </div>
 

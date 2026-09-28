@@ -7,3 +7,8 @@ venv/
 # 患者数据与密钥，切勿提交
 instance/
 *.sqlite3
+
+# 打包产物
+build/
+dist/
+packaging/MicrosoftEdgeWebview2Setup.exe

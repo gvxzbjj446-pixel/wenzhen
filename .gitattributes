@@ -1,3 +1,7 @@
 * text=auto
 *.bat text eol=crlf
 *.sh text eol=lf
+*.iss text eol=crlf
+*.isl text eol=crlf
+*.ico binary
+*.icns binary

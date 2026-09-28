@@ -1,0 +1,146 @@
+name: 测试与打包
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: 自动化测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+
+  windows:
+    name: Windows 安装程序
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: 安装依赖
+        run: pip install -r requirements-desktop.txt pyinstaller
+      - name: 读取版本号
+        id: version
+        shell: bash
+        run: echo "version=$(python -c 'import wenzhen; print(wenzhen.__version__)')" >> "$GITHUB_OUTPUT"
+      - name: 打包程序
+        run: pyinstaller --noconfirm --clean packaging/wenzhen.spec
+      - name: 下载 WebView2 运行库安装程序（随安装包附带）
+        shell: pwsh
+        run: |
+          Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile packaging\MicrosoftEdgeWebview2Setup.exe
+          $key = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+          if (-not (Test-Path $key)) {
+            Write-Host "测试机没有 WebView2，先安装"
+            Start-Process packaging\MicrosoftEdgeWebview2Setup.exe -ArgumentList "/silent", "/install" -Wait
+          }
+      - name: 冒烟测试：打开窗口、检查页面后自动退出
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP "smoke"
+          $p = Start-Process -FilePath "dist\Wenzhen\Wenzhen.exe" -ArgumentList "--smoke-test", "--data-dir", $dir -PassThru -Wait
+          Get-Content (Join-Path $dir "logs\wenzhen.log") -Encoding utf8
+          if ($p.ExitCode -ne 0) { throw "冒烟测试失败，退出码 $($p.ExitCode)" }
+      - name: 生成安装程序
+        shell: pwsh
+        run: |
+          $iscc = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe", "$env:ProgramFiles\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $iscc) {
+            choco install innosetup --no-progress -y
+            $iscc = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe", "$env:ProgramFiles\Inno Setup*\ISCC.exe" | Select-Object -First 1
+          }
+          & $iscc.FullName "/DAppVersion=${{ steps.version.outputs.version }}" packaging\installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "安装程序生成失败" }
+      - name: 安装程序测试：静默安装后运行
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist\WenzhenClinic-Setup-*.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CURRENTUSER" -Wait
+          $exe = Join-Path $env:LOCALAPPDATA "Programs\WenzhenClinic\Wenzhen.exe"
+          if (-not (Test-Path $exe)) { throw "安装后找不到 $exe" }
+          $shortcut = Join-Path ([Environment]::GetFolderPath("Programs")) "王艳霞中医门诊\王艳霞中医门诊.lnk"
+          if (-not (Test-Path $shortcut)) { throw "开始菜单中没有快捷方式" }
+          $dir = Join-Path $env:RUNNER_TEMP "smoke-installed"
+          $p = Start-Process -FilePath $exe -ArgumentList "--smoke-test", "--data-dir", $dir -PassThru -Wait
+          Get-Content (Join-Path $dir "logs\wenzhen.log") -Encoding utf8
+          if ($p.ExitCode -ne 0) { throw "安装后的程序运行失败，退出码 $($p.ExitCode)" }
+      - name: 绿色版压缩包（免安装）
+        shell: pwsh
+        run: Compress-Archive -Path dist\Wenzhen -DestinationPath "dist\WenzhenClinic-Portable-${{ steps.version.outputs.version }}-Windows.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/WenzhenClinic-Setup-*.exe
+            dist/WenzhenClinic-Portable-*.zip
+          if-no-files-found: error
+
+  macos:
+    name: macOS 应用
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: 安装依赖
+        run: pip install -r requirements-desktop.txt pyinstaller
+      - name: 打包程序
+        run: pyinstaller --noconfirm --clean packaging/wenzhen.spec
+      - name: 冒烟测试：打开窗口、检查页面后自动退出
+        timeout-minutes: 5
+        run: |
+          status=0
+          "dist/王艳霞中医门诊.app/Contents/MacOS/Wenzhen" --smoke-test --data-dir "$RUNNER_TEMP/smoke" || status=$?
+          cat "$RUNNER_TEMP/smoke/logs/wenzhen.log"
+          exit $status
+      - name: 压缩
+        run: |
+          version=$(python -c 'import wenzhen; print(wenzhen.__version__)')
+          cd dist && ditto -c -k --sequesterRsrc --keepParent "王艳霞中医门诊.app" "WenzhenClinic-${version}-macOS.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/WenzhenClinic-*-macOS.zip
+          if-no-files-found: error
+
+  release:
+    name: 发布
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

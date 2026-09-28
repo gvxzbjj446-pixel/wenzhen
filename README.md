@@ -1,7 +1,7 @@
 # 王艳霞中医门诊 · 问诊记录系统
 
-在诊所电脑上运行的中医门诊病历系统：患者建档、四诊问诊记录、开方打印、复诊提醒、方剂库、统计与备份。
-数据保存在本机，不依赖外网，打开浏览器即可使用；同一局域网的手机、平板也能访问。
+安装在诊所电脑上的中医门诊病历软件：患者建档、四诊问诊记录、开方打印、复诊提醒、方剂库、统计与备份。
+像普通软件一样双击桌面图标打开，有独立窗口和菜单，**不需要浏览器、不需要联网**，数据只保存在本机。
 
 ## 功能一览
 
@@ -17,51 +17,35 @@
 | **方剂库** | 常用方 / 经验方模板，可把某次处方另存为经验方；首次启动预置 10 首经典方（教材参考剂量） |
 | **复诊提醒** | 列出即将复诊和逾期未来的患者及电话，患者再次就诊后提醒自动消失 |
 | **统计** | 按月接诊人次、患者数、初诊数、收费；常见诊断、证型、常用方、常用药物（含平均剂量）；就诊患者性别与年龄构成 |
-| **数据安全** | 登录后才能使用；每天自动备份数据库（保留 30 份）；一键下载完整备份；患者和就诊记录可导出为 Excel 可打开的 CSV |
+| **数据安全** | 登录后才能使用；每天自动备份数据库（保留 30 份）；“备份到…”一键存到 U 盘，“从备份恢复…”换电脑也方便；患者和就诊记录可导出为 Excel 可打开的 CSV |
 
-## 安装与启动
+## 下载与安装
 
-需要 **Python 3.9 或更高版本**（Windows 安装时勾选 “Add Python to PATH”）。
+### Windows（推荐）
 
-- **Windows**：双击 `start.bat`。首次运行会自动安装所需组件（约 1 分钟），之后浏览器会自动打开系统。
-- **macOS / Linux**：在终端运行 `./start.sh`。
-- **手动方式**：
+1. 下载 **`WenzhenClinic-Setup-版本号.exe`**（在本仓库的 Releases 页面，或 Actions 中最近一次“测试与打包”运行的 `windows` 附件里）。
+2. 双击运行安装程序 → 下一步 → 完成。不需要管理员权限，也不需要安装 Python。
+3. 桌面和开始菜单会出现 **「王艳霞中医门诊」** 图标，双击即可打开。
 
-  ```bash
-  python -m venv .venv
-  .venv/bin/pip install -r requirements.txt      # Windows: .venv\Scripts\pip install -r requirements.txt
-  .venv/bin/python run.py
-  ```
+- 适用于 Windows 10 / 11（64 位）。软件界面由系统自带的 Microsoft Edge WebView2 显示；个别电脑缺少时，安装程序会自动安装。
+- 不方便安装时可用 **绿色版**：解压 `WenzhenClinic-Portable-版本号-Windows.zip`，双击其中的 `Wenzhen.exe`。
+- 升级：直接运行新版安装程序覆盖安装，数据不受影响。
 
-然后在浏览器打开 <http://127.0.0.1:5000>。首次打开会要求创建医师账户，并填写诊所名称和医师姓名（会打印在处方上）。
+### macOS
 
-### 用手机、平板访问
+下载 `WenzhenClinic-版本号-macOS.zip`，解压后把「王艳霞中医门诊」拖到“应用程序”。
+（适用于 Apple 芯片的 Mac；软件未经苹果公证，首次打开请在访达中右键 → 打开。）
 
-```bash
-python run.py --lan
-```
+### 首次使用
 
-启动后窗口会显示局域网地址（如 `http://192.168.1.20:5000`），同一 Wi-Fi 下的设备打开即可。
-**请不要把本系统直接暴露到公网**：它面向诊所内部使用。
+打开软件后按提示创建医师账户，并填写诊所名称和医师姓名（会打印在处方上）。之后每次打开需登录。
 
-## 数据与备份
+## 使用说明
 
-- 所有数据在 `instance/wenzhen.sqlite3` 这一个文件里。
-- 每天第一次使用时，系统自动备份到 `instance/backups/`，保留最近 30 份。
-- “设置 → 下载完整备份”可随时下载一份备份文件，**建议每周拷贝到 U 盘或网盘**。
-- **恢复**：关闭系统 → 用备份文件替换 `instance/wenzhen.sqlite3`（文件名保持不变）→ 重新启动。
-- 命令行立即备份：`.venv/bin/flask --app wenzhen backup`
-
-### 忘记密码
-
-```bash
-.venv/bin/flask --app wenzhen set-password 用户名     # Windows: .venv\Scripts\flask --app wenzhen set-password 用户名
-```
-
-按提示输入新密码即可；用户名不存在时会新建该账户。
-
-## 使用小贴士
-
+- **菜单栏**：「文件」中有新患者建档、备份数据…、从备份恢复…、打开数据文件夹；「查看」可快速跳到工作台、患者、复诊提醒。
+- **关闭窗口**：如果问诊表单还没保存，会先提醒，避免误关丢失内容。
+- 软件已打开时再次双击图标，会直接切换到已打开的窗口。
+- **打印**：在处方或病历的打印页点“打印”（或按 Ctrl+P），可选择打印机或另存为 PDF。
 - **处方快速录入**：点“快速录入”，输入或粘贴整张方子，药名后直接跟剂量；单位可写 g/克/枚/片/个 等，
   脚注（先煎、后下、包煎、烊化、冲服……）直接写在剂量后面；写 `7剂` 会自动填入剂数。
 - 在药物表格中按 **回车**：从药名跳到剂量，再跳到下一行（没有下一行会自动新增）。
@@ -69,15 +53,48 @@ python run.py --lan
 - 配伍禁忌提示只作提醒，不会阻止保存，是否同用由医师决定。
 - 男性患者的问诊表单会隐藏“经带胎产”一栏。
 
+## 数据与备份
+
+- 所有数据在一个文件里：Windows 为 `%APPDATA%\WenzhenClinic\wenzhen.sqlite3`，macOS 为 `~/Library/Application Support/WenzhenClinic/`。
+  「设置 → 关于本软件」或菜单「文件 → 打开数据文件夹」可直接打开。
+- 每天第一次使用时自动备份到数据文件夹的 `backups` 中，保留最近 30 份。
+- **建议每周用「文件 → 备份数据…」把数据另存到 U 盘或网盘一份。**
+- **换电脑 / 恢复**：在新电脑安装本软件 → 「文件 → 从备份恢复…」选择备份文件。恢复前软件会把当前数据自动另存一份。
+- 卸载软件不会删除数据；彻底删除需手动删除上述数据文件夹。
+
+### 忘记密码
+
+在命令提示符中运行（安装在默认位置时）：
+
+```bat
+"%LOCALAPPDATA%\Programs\WenzhenClinic\Wenzhen.exe" --reset-password 用户名 新密码
+```
+
+会弹窗提示“已重置”；用户名不存在时会新建该账户。
+
+## 高级：让手机、平板也能访问
+
+桌面版只允许本机使用。如需在诊所局域网内用手机、平板访问，可在装有 Python 3.9+ 的电脑上以服务器方式运行：
+
+```bash
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt     # Windows: .venv\Scripts\pip install -r requirements.txt
+.venv/bin/python run.py --lan
+```
+
+窗口会显示局域网地址（如 `http://192.168.1.20:5000`），同一 Wi-Fi 下的设备用浏览器打开即可。
+服务器方式的数据在项目的 `instance/` 目录。**请不要把它直接暴露到公网。**
+
 ## 系统设计
 
 ```
-浏览器（电脑 / 手机 / 平板）
-        │ HTTP（局域网）
-        ▼
-run.py ── waitress 服务器
-        │
-        ▼
+桌面窗口（Windows：Edge WebView2 ／ macOS：WKWebView）
+  │  菜单、另存为/打开对话框、关闭前提醒 ── wenzhen/desktop.py
+  │  HTTP，仅本机 127.0.0.1 随机端口
+  ▼
+waitress 服务线程（同一进程内）
+  │
+  ▼
 wenzhen/（Flask 应用）
   ├─ auth.py       登录、首次设置
   ├─ patients.py   患者档案
@@ -87,10 +104,11 @@ wenzhen/（Flask 应用）
   ├─ fields.py     问诊字段与常用描述（改这里即可增减问诊项目）
   ├─ herbs.py      药名联想词库、煎服法、预置方剂
   ├─ compat.py     十八反、十九畏规则
+  ├─ desktop.py    桌面版外壳：窗口、菜单、本机对话框、单实例、自检
   └─ templates/ static/   页面与样式（无外部依赖，可离线使用）
         │
         ▼
-instance/wenzhen.sqlite3（SQLite 单文件数据库）
+数据目录/wenzhen.sqlite3（SQLite 单文件数据库）
 ```
 
 数据表：
@@ -112,5 +130,18 @@ instance/wenzhen.sqlite3（SQLite 单文件数据库）
 ```bash
 python -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/python -m pytest
+.venv/bin/python -m pytest          # 自动化测试
+.venv/bin/python -m wenzhen         # 从源码启动桌面版
 ```
+
+### 打包
+
+```bash
+pip install -r requirements-desktop.txt pyinstaller
+pyinstaller --noconfirm --clean packaging/wenzhen.spec      # 生成 dist/Wenzhen/（macOS 为 .app）
+iscc /DAppVersion=1.1.0 packaging/installer.iss             # Windows：生成安装程序（Inno Setup 6）
+```
+
+推送代码后，GitHub Actions（`.github/workflows/build.yml`）会自动：运行测试 → 在 Windows、macOS 上打包 →
+打开窗口做自检 → 静默安装后再自检 → 上传安装包。推送 `v` 开头的标签（如 `v1.1.0`）时自动发布到 Releases。
+版本号在 `wenzhen/__init__.py` 中修改；图标由 `packaging/make_icon.py` 生成。

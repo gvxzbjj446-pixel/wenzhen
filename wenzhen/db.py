@@ -1,8 +1,10 @@
 """SQLite 数据库连接、初始化、系统设置与备份。"""
 
 import os
+import re
 import sqlite3
-from datetime import date
+from datetime import date, datetime
+from pathlib import Path
 
 import click
 from flask import current_app, g
@@ -133,13 +135,56 @@ def auto_backup(keep=30):
     if os.path.exists(target):
         return None
     backup_to(target)
-    backups = sorted(
-        name for name in os.listdir(folder)
-        if name.startswith("wenzhen-") and name.endswith(".sqlite3")
-    )
+    # 只清理每日自动备份；手动备份和恢复前的备份不删
+    backups = sorted(name for name in os.listdir(folder) if _DAILY_BACKUP.fullmatch(name))
     for old in backups[:-keep]:
         os.remove(os.path.join(folder, old))
     return target
+
+
+_DAILY_BACKUP = re.compile(r"wenzhen-\d{8}\.sqlite3")
+_REQUIRED_TABLES = {"patients", "visits", "prescription_items", "users"}
+
+
+def _open_readonly(path):
+    return sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)
+
+
+def inspect_backup(path):
+    """检查文件是否为本系统的完好备份，返回 (患者数, 就诊数)；不是则抛出 ValueError。"""
+    try:
+        conn = _open_readonly(path)
+    except sqlite3.Error as exc:
+        raise ValueError("无法打开该文件。") from exc
+    try:
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        if not _REQUIRED_TABLES <= tables:
+            raise ValueError("该文件不是本系统的数据备份。")
+        if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            raise ValueError("备份文件已损坏。")
+        patients = conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0]
+        visits = conn.execute("SELECT COUNT(*) FROM visits").fetchone()[0]
+        return patients, visits
+    except sqlite3.DatabaseError as exc:
+        raise ValueError("该文件不是有效的数据库文件。") from exc
+    finally:
+        conn.close()
+
+
+def restore_backup(path):
+    """用备份文件替换当前全部数据。替换前自动把当前数据另存一份，返回该文件路径。"""
+    inspect_backup(path)
+    folder = backup_dir()
+    os.makedirs(folder, exist_ok=True)
+    safety = os.path.join(folder, f"wenzhen-before-restore-{datetime.now():%Y%m%d-%H%M%S}.sqlite3")
+    backup_to(safety)
+    source = _open_readonly(path)
+    try:
+        source.backup(get_db())
+    finally:
+        source.close()
+    init_db()  # 旧版本的备份：补齐新增的列与设置
+    return safety
 
 
 @click.command("set-password")
@@ -148,8 +193,17 @@ def auto_backup(keep=30):
 @with_appcontext
 def set_password_command(username, password):
     """创建账户，或重置已有账户的密码（忘记密码时使用）。"""
+    try:
+        message = set_user_password(username, password)
+    except ValueError as exc:
+        raise click.BadParameter(str(exc), param_hint="password") from exc
+    click.echo(message)
+
+
+def set_user_password(username, password):
+    """重置账户密码；账户不存在则新建。返回说明文字。"""
     if len(password) < 6:
-        raise click.BadParameter("密码至少 6 位。", param_hint="password")
+        raise ValueError("密码至少 6 位。")
     conn = get_db()
     pw_hash = generate_password_hash(password)
     row = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
@@ -163,7 +217,7 @@ def set_password_command(username, password):
         )
         message = f"已创建账户 {username}。"
     conn.commit()
-    click.echo(message)
+    return message
 
 
 @click.command("backup")

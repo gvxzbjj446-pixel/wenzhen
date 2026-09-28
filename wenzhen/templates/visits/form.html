@@ -114,7 +114,7 @@
     <section class="card">
       <div class="card-head">
         <h2>上次就诊</h2>
-        {% if last %}<a class="small" href="{{ url_for('visits.detail', visit_id=last.id) }}" target="_blank" rel="noopener">{{ last.visit_date }}</a>{% endif %}
+        {% if last %}<span class="muted small">{{ last.visit_date }}</span>{% endif %}
       </div>
       {% if last %}
         <dl class="kv small">

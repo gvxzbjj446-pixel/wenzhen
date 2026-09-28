@@ -6,8 +6,10 @@ import os
 import tempfile
 from datetime import date, datetime, timedelta
 
-from flask import (Blueprint, Response, flash, g, redirect, render_template,
-                   request, send_file, url_for)
+from urllib.parse import quote
+
+from flask import (Blueprint, Response, current_app, flash, g, redirect,
+                   render_template, request, send_file, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .auth import create_user, validate_new_account, validate_password
@@ -31,7 +33,13 @@ AGE_GROUPS = (("0–14 岁", 0, 14), ("15–44 岁", 15, 44), ("45–59 岁", 45
 
 @bp.app_context_processor
 def inject_globals():
-    return {"clinic": get_settings(), "today": date.today().isoformat()}
+    from . import __version__
+    return {
+        "clinic": get_settings(),
+        "today": date.today().isoformat(),
+        "desktop": current_app.config["DESKTOP"],
+        "app_version": __version__,
+    }
 
 
 @bp.app_errorhandler(400)
@@ -205,6 +213,7 @@ def settings():
     return render_template(
         "settings.html", fields=SETTING_FIELDS, values=values, errors=errors,
         backups=backups, backup_folder=folder, counts=counts,
+        data_folder=current_app.instance_path,
     )
 
 
@@ -269,6 +278,12 @@ def _csv_cell(value):
     return value
 
 
+def _attachment(filename):
+    """下载文件名：中文名（filename*）＋英文兜底（filename），各浏览器都能正确显示。"""
+    fallback = filename.encode("ascii", "ignore").decode() or "download"
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename)}"
+
+
 def _csv_response(filename, header, rows):
     buf = io.StringIO()
     buf.write("﻿")  # BOM：Excel 直接打开时中文不乱码
@@ -277,7 +292,7 @@ def _csv_response(filename, header, rows):
     writer.writerows([_csv_cell(v) for v in row] for row in rows)
     return Response(
         buf.getvalue(), mimetype="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": _attachment(filename)},
     )
 
 
@@ -298,7 +313,7 @@ def export_patients():
          p["family_history"], p["notes"], p["created_at"], p["visit_count"], p["last_visit"] or ""]
         for p in rows
     )
-    return _csv_response(f"patients-{date.today():%Y%m%d}.csv", header, data)
+    return _csv_response(f"患者档案-{date.today():%Y%m%d}.csv", header, data)
 
 
 @bp.route("/export/visits.csv")
@@ -325,7 +340,7 @@ def export_visits():
            v["fee"], v["next_visit_date"]]
         for v in visits
     )
-    return _csv_response(f"visits-{date.today():%Y%m%d}.csv", header, data)
+    return _csv_response(f"就诊记录-{date.today():%Y%m%d}.csv", header, data)
 
 
 @bp.route("/backup")
@@ -341,5 +356,5 @@ def backup():
         os.remove(path)
     return send_file(
         io.BytesIO(data), mimetype="application/vnd.sqlite3", as_attachment=True,
-        download_name=f"wenzhen-backup-{date.today():%Y%m%d}.sqlite3",
+        download_name=f"{get_settings()['clinic_name']}-数据备份-{date.today():%Y%m%d}.sqlite3",
     )
