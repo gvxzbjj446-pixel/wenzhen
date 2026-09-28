@@ -493,4 +493,7 @@
   /* ---------- 打印页 ---------- */
   var printBtn = document.querySelector("[data-print]");
   if (printBtn) printBtn.addEventListener("click", function () { window.print(); });
+
+  // 放在最后：前面的初始化都成功才标记就绪，否则页面会显示“脚本没有正常运行”的提示
+  document.documentElement.classList.add("js-ready");
 })();

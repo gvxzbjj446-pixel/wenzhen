@@ -11,19 +11,17 @@
   <form class="card" method="post" style="margin:0">
     {{ csrf() }}
     <h2>诊所信息</h2>
-    <p class="muted small">显示在页面顶部，并打印在处方笺和病历上。</p>
     {{ errors_box(errors) }}
-    {% for key, label in fields %}
-      <div class="field" style="margin-bottom:12px">
-        <label for="{{ key }}" class="{{ 'required' if key == 'clinic_name' }}">{{ label }}</label>
-        {% if key == 'default_dose_count' %}
-          <input type="number" id="{{ key }}" name="{{ key }}" min="0" max="999" value="{{ values[key] }}">
-        {% else %}
-          <input type="text" id="{{ key }}" name="{{ key }}" value="{{ values[key] }}">
-        {% endif %}
-      </div>
-    {% endfor %}
-    <button class="btn btn-primary" type="submit">保存设置</button>
+    <div class="form-grid" style="margin-bottom:16px">
+      {% for key, label, hint in fields %}
+        <div class="field">
+          <label for="{{ key }}" class="{{ 'required' if key == 'clinic_name' }}">{{ label }}</label>
+          <input type="text" id="{{ key }}" name="{{ key }}" value="{{ values[key] }}" {{ 'required' if key == 'clinic_name' }}>
+          <div class="hint">{{ hint }}</div>
+        </div>
+      {% endfor %}
+    </div>
+    <button class="btn btn-primary" type="submit">保存</button>
   </form>
 
   <section class="card" style="margin:0">

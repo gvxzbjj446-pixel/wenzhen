@@ -487,6 +487,23 @@ table.herb-table { width: 100%; border-collapse: collapse; }
 
 .ranges { display: flex; flex-wrap: wrap; gap: 6px; }
 
+/* ---------- 页面脚本未运行时的提示 ---------- */
+
+/* 默认隐藏；3 秒后仍没有被脚本标记为就绪才显示，正常情况下看不到 */
+.js-warning {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  z-index: 120;
+  width: min(680px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  box-shadow: 0 6px 20px rgba(42, 37, 33, .2);
+  visibility: hidden;
+  animation: js-warning-show 0s 3s forwards;
+}
+@keyframes js-warning-show { to { visibility: visible; } }
+.js-ready .js-warning { display: none; }
+
 /* ---------- 对话框与提示条 ---------- */
 
 .btn-danger-solid { background: var(--danger); border-color: var(--danger); color: #fff; }

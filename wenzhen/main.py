@@ -18,13 +18,12 @@ from .utils import age_text, herb_text, parse_date, record_no
 
 bp = Blueprint("main", __name__)
 
+# 设置页的诊所信息：(键, 名称, 说明)
 SETTING_FIELDS = (
-    ("clinic_name", "诊所名称"),
-    ("doctor_name", "医师姓名"),
-    ("clinic_address", "诊所地址"),
-    ("clinic_phone", "诊所电话"),
-    ("default_usage", "默认煎服法"),
-    ("default_dose_count", "默认剂数"),
+    ("clinic_name", "诊所名称", "显示在软件顶部，打印在处方笺和病历的抬头"),
+    ("doctor_name", "医师姓名", "打印在处方笺和病历的医师签名处"),
+    ("clinic_address", "诊所地址", "打印在处方笺抬头，可不填"),
+    ("clinic_phone", "诊所电话", "打印在处方笺抬头，可不填"),
 )
 AGE_GROUPS = (("0–14 岁", 0, 14), ("15–44 岁", 15, 44), ("45–59 岁", 45, 59), ("60 岁以上", 60, 200))
 
@@ -180,12 +179,9 @@ def settings():
     errors = []
     values = get_settings()
     if request.method == "POST":
-        values = {key: request.form.get(key, "").strip() for key, _ in SETTING_FIELDS}
+        values = {key: request.form.get(key, "").strip() for key, _, _ in SETTING_FIELDS}
         if not values["clinic_name"]:
             errors.append("诊所名称不能为空。")
-        count = values["default_dose_count"]
-        if count and not (count.isdigit() and int(count) <= 999):
-            errors.append("默认剂数应为 0–999 的整数。")
         if not errors:
             for key, value in values.items():
                 set_setting(key, value)

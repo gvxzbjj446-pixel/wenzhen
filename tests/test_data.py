@@ -39,18 +39,26 @@ def test_export_visits_csv(client):
     assert "胃脘胀痛3月" not in filtered
 
 
-def test_settings_update(client):
+def test_settings_update(client, app):
     resp = client.post("/settings", data={
         "clinic_name": "王艳霞中医诊所", "doctor_name": "王艳霞", "clinic_address": "幸福路 1 号",
-        "clinic_phone": "0000-1234567", "default_usage": "水煎服", "default_dose_count": "5",
+        "clinic_phone": "0000-1234567", "default_usage": "外用", "default_dose_count": "x",
     })
     assert resp.status_code == 302
     page = client.get("/").get_data(as_text=True)
     assert "王艳霞中医诊所" in page
 
-    bad = client.post("/settings", data={"clinic_name": "", "default_dose_count": "x"})
-    text = bad.get_data(as_text=True)
-    assert "诊所名称不能为空" in text and "默认剂数" in text
+    settings_page = client.get("/settings").get_data(as_text=True)
+    assert "默认煎服法" not in settings_page and "默认剂数" not in settings_page
+    assert "打印在处方笺" in settings_page
+    # 默认煎服法与剂数不在设置页修改，仍按原值用于新建问诊
+    from wenzhen.db import get_settings
+    with app.app_context():
+        settings = get_settings()
+    assert (settings["default_usage"], settings["default_dose_count"]) == ("水煎服，日一剂，早晚分服", "7")
+
+    bad = client.post("/settings", data={"clinic_name": ""})
+    assert "诊所名称不能为空" in bad.get_data(as_text=True)
 
 
 def test_missing_visit_columns_are_added_on_startup(app):

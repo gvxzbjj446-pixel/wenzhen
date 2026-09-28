@@ -151,7 +151,7 @@ wenzhen/（Flask 应用）
 | `prescription_items` | 处方明细：药名、剂量、单位、脚注，按顺序排列 |
 | `formulas` / `formula_items` | 方剂库及其组成 |
 | `users` | 登录账户（密码加盐哈希保存） |
-| `settings` | 诊所名称、医师姓名、地址电话、默认煎服法与剂数 |
+| `settings` | 诊所名称、医师姓名、地址电话；新建问诊时的默认煎服法与剂数；备份相关的本机设置 |
 
 **增加问诊项目**：在 `wenzhen/fields.py` 对应分组中加一个 `Field(...)` 即可，重启后系统会自动给已有数据库补上这一列；
 表单、详情、打印和导出都会自动出现该项。（也请在 `wenzhen/schema.sql` 的 `visits` 表中补上同名列，便于查阅。）
