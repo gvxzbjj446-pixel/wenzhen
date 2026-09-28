@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pagination %}
+{% block title %}患者{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>患者档案</h1>
+    <div class="sub">共 {{ pager.total }} 位{% if q %}匹配「{{ q }}」的{% endif %}患者</div>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="{{ url_for('patients.new', name=q if q and not q.isdigit() else None) }}">＋ 新患者建档</a>
+  </div>
+</div>
+
+<div class="card">
+  <form class="search-bar" method="get">
+    <input type="search" name="q" value="{{ q }}" placeholder="姓名 / 电话 / 病历号" aria-label="搜索患者">
+    <button class="btn btn-primary" type="submit">搜索</button>
+    {% if q %}<a class="btn" href="{{ url_for('patients.index') }}">清除</a>{% endif %}
+  </form>
+</div>
+
+<div class="card">
+  {% if patients %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr><th>病历号</th><th>姓名</th><th>性别</th><th>年龄</th><th>电话</th><th class="num">就诊次数</th><th>最近就诊</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% for p in patients %}
+          <tr>
+            <td class="muted">{{ p.id|record_no }}</td>
+            <td><a href="{{ url_for('patients.detail', patient_id=p.id) }}"><strong>{{ p.name }}</strong></a>
+              {% if p.allergies %} <span class="badge badge-danger" title="过敏史：{{ p.allergies }}">过敏</span>{% endif %}</td>
+            <td>{{ p.gender }}</td>
+            <td class="nowrap">{{ age_text(p.birth_date) }}</td>
+            <td class="nowrap">{{ p.phone }}</td>
+            <td class="num">{{ p.visit_count }}</td>
+            <td class="nowrap">{{ p.last_visit or '—' }}</td>
+            <td class="nowrap"><a class="btn btn-sm" href="{{ url_for('visits.new', patient_id=p.id) }}">问诊</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {{ pagination(pager, 'patients.index', q=q) }}
+  {% elif q %}
+    <div class="empty">没有找到「{{ q }}」。<a href="{{ url_for('patients.new', name=q if not q.isdigit() else None) }}">为该患者建档</a></div>
+  {% else %}
+    <div class="empty">还没有患者档案。<a href="{{ url_for('patients.new') }}">新建第一位患者</a></div>
+  {% endif %}
+</div>
+{% endblock %}

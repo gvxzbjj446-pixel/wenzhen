@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% from "_macros.html" import errors_box, csrf %}
+{% block title %}{{ '新患者建档' if is_new else '编辑患者' }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ '新患者建档' if is_new else '编辑患者：' ~ patient.name }}</h1>
+</div>
+
+<form class="card" method="post" data-dirty-guard>
+  {{ csrf() }}
+  {{ errors_box(errors) }}
+  <div class="form-section">
+    <h2>基本信息</h2>
+    <div class="form-grid">
+      <div class="field">
+        <label for="name" class="required">姓名</label>
+        <input type="text" id="name" name="name" value="{{ patient.name }}" required maxlength="50" {{ 'autofocus' if is_new }}>
+      </div>
+      <div class="field">
+        <label>性别</label>
+        <div class="radio-group">
+          {% for g_ in ('男', '女') %}
+            <label><input type="radio" name="gender" value="{{ g_ }}" {{ 'checked' if patient.gender == g_ }}> {{ g_ }}</label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="field">
+        <label for="birth_date">出生日期</label>
+        <input type="date" id="birth_date" name="birth_date" value="{{ patient.birth_date }}" max="{{ today }}">
+        <div class="hint">当前年龄：<span>{{ age_text(patient.birth_date) or '—' }}</span></div>
+      </div>
+      <div class="field">
+        <label for="age">或只填年龄</label>
+        <input type="number" id="age" name="age" min="0" max="130" placeholder="不知道出生日期时填写">
+        <div class="hint">按当年 1 月 1 日估算出生日期</div>
+      </div>
+      <div class="field">
+        <label for="phone">电话</label>
+        <input type="tel" id="phone" name="phone" value="{{ patient.phone }}">
+      </div>
+      <div class="field">
+        <label for="occupation">职业</label>
+        <input type="text" id="occupation" name="occupation" value="{{ patient.occupation }}">
+      </div>
+      <div class="field wide">
+        <label for="address">住址</label>
+        <input type="text" id="address" name="address" value="{{ patient.address }}">
+      </div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h2>病史</h2>
+    <div class="form-grid">
+      <div class="field wide">
+        <label for="allergies">过敏史</label>
+        <input type="text" id="allergies" name="allergies" value="{{ patient.allergies }}" placeholder="药物、食物过敏；无则留空">
+        <div class="hint">填写后，问诊和开方时会醒目提示。</div>
+      </div>
+      <div class="field wide">
+        <label for="past_history">既往史</label>
+        <textarea id="past_history" name="past_history" rows="2" placeholder="高血压、糖尿病、手术史等">{{ patient.past_history }}</textarea>
+      </div>
+      <div class="field wide">
+        <label for="family_history">家族史</label>
+        <textarea id="family_history" name="family_history" rows="2">{{ patient.family_history }}</textarea>
+      </div>
+      <div class="field wide">
+        <label for="notes">备注</label>
+        <textarea id="notes" name="notes" rows="2">{{ patient.notes }}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    {% if is_new %}
+      <button class="btn btn-primary" type="submit" name="after" value="visit">保存并开始问诊</button>
+      <button class="btn" type="submit">仅保存</button>
+      <a class="btn" href="{{ url_for('patients.index') }}">取消</a>
+    {% else %}
+      <button class="btn btn-primary" type="submit">保存</button>
+      <a class="btn" href="{{ url_for('patients.detail', patient_id=patient.id) }}">取消</a>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

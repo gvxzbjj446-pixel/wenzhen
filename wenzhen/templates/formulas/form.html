@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% from "_macros.html" import errors_box, csrf, herb_editor %}
+{% block title %}{{ '新增方剂' if is_new else '编辑方剂' }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ '新增方剂' if is_new else '编辑方剂：' ~ formula.name }}</h1>
+</div>
+
+<form class="card" method="post" data-dirty-guard>
+  {{ csrf() }}
+  {{ errors_box(errors) }}
+  <div class="form-section">
+    <div class="form-grid">
+      <div class="field">
+        <label for="name" class="required">方名</label>
+        <input type="text" id="name" name="name" value="{{ formula.name }}" required maxlength="50">
+      </div>
+      <div class="field">
+        <label for="source">出处</label>
+        <input type="text" id="source" name="source" value="{{ formula.source }}" placeholder="如：《伤寒论》、经验方">
+      </div>
+      <div class="field wide">
+        <label for="indication">功用主治</label>
+        <textarea id="indication" name="indication" rows="2">{{ formula.indication }}</textarea>
+      </div>
+      <div class="field wide">
+        <label for="usage">用法</label>
+        <input type="text" id="usage" name="usage" value="{{ formula.usage }}" placeholder="引用此方时自动填入（处方用法为空时）">
+      </div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h2>组成</h2>
+    {{ herb_editor(items, herbs, units, herb_notes, compat_rules) }}
+  </div>
+
+  <div class="form-section">
+    <div class="field">
+      <label for="notes">备注</label>
+      <textarea id="notes" name="notes" rows="2" placeholder="加减法、注意事项等">{{ formula.notes }}</textarea>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">保存</button>
+    <a class="btn" href="{{ url_for('formulas.index') }}">取消</a>
+  </div>
+</form>
+{% endblock %}

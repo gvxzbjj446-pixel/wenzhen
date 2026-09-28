@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}方剂库{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>方剂库</h1>
+    <div class="sub">常用方与经验方，开处方时可一键引用后加减</div>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="{{ url_for('formulas.new') }}">＋ 新增方剂</a>
+  </div>
+</div>
+
+<div class="card">
+  <form class="search-bar" method="get">
+    <input type="search" name="q" value="{{ q }}" placeholder="方名 / 功用主治 / 药名" aria-label="搜索方剂">
+    <button class="btn btn-primary" type="submit">搜索</button>
+    {% if q %}<a class="btn" href="{{ url_for('formulas.index') }}">清除</a>{% endif %}
+  </form>
+</div>
+
+{% if formulas %}
+  <div class="grid grid-2">
+    {% for f in formulas %}
+      <section class="card" style="margin:0">
+        <div class="card-head">
+          <h2>{{ f.name }} {% if f.source %}<span class="muted small" style="font-weight:400">{{ f.source }}</span>{% endif %}</h2>
+          <div class="actions">
+            <a class="btn btn-sm" href="{{ url_for('formulas.edit', formula_id=f.id) }}">编辑</a>
+            <form class="inline" method="post" action="{{ url_for('formulas.delete', formula_id=f.id) }}" data-confirm="确定删除方剂「{{ f.name }}」吗？">
+              {{ csrf() }}
+              <button class="btn btn-sm btn-danger" type="submit">删除</button>
+            </form>
+          </div>
+        </div>
+        <p>{{ items[f.id]|herb_text }}</p>
+        {% if f.indication %}<p class="muted small">{{ f.indication }}</p>{% endif %}
+        {% if f.usage %}<p class="muted small">用法：{{ f.usage }}</p>{% endif %}
+        {% if f.notes %}<p class="muted small">{{ f.notes }}</p>{% endif %}
+      </section>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="card"><div class="empty">{% if q %}没有找到「{{ q }}」相关的方剂。{% else %}方剂库为空。{% endif %}</div></div>
+{% endif %}
+{% endblock %}

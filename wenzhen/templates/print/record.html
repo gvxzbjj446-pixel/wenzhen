@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>门诊病历 · {{ patient.name }} · {{ visit.visit_date }}</title>
+  <style>
+    @page { size: A4 portrait; margin: 15mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e9e6e0; color: #111; font-size: 11pt; line-height: 1.7;
+           font-family: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", "Source Han Serif SC", serif; }
+    .toolbar { display: flex; gap: 8px; justify-content: center; padding: 12px;
+               font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    .toolbar button, .toolbar a { padding: 8px 18px; border: 1px solid #bbb; border-radius: 6px; background: #fff;
+                                  color: #222; font-size: 14px; text-decoration: none; cursor: pointer; }
+    .toolbar .primary { background: #2f6b5b; border-color: #2f6b5b; color: #fff; }
+    .sheet { width: 210mm; min-height: 297mm; margin: 0 auto 24px; padding: 15mm; background: #fff;
+             box-shadow: 0 2px 10px rgba(0,0,0,.15); }
+    header { text-align: center; padding-bottom: 3mm; border-bottom: 2px solid #111; }
+    h1 { margin: 0; font-size: 18pt; letter-spacing: 2px; }
+    .kind { font-size: 14pt; letter-spacing: 8px; }
+    .info { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1mm 4mm; padding: 3mm 0;
+            border-bottom: 1px solid #111; }
+    .info .span2 { grid-column: span 2; }
+    .info .full { grid-column: 1 / -1; }
+    .label { color: #444; }
+    h2 { font-size: 12pt; margin: 5mm 0 1.5mm; padding-bottom: 1mm; border-bottom: 1px solid #999; }
+    dl { display: grid; grid-template-columns: 6.5em 1fr; gap: 0.5mm 3mm; margin: 0; }
+    dt { color: #444; }
+    dd { margin: 0; white-space: pre-wrap; }
+    .herbs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.5mm 3mm; margin: 2mm 0; }
+    .note { font-size: 9pt; }
+    .sign { display: flex; justify-content: flex-end; gap: 12mm; margin-top: 10mm; }
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none; }
+      .sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="primary" type="button" data-print>打印</button>
+    <a href="{{ url_for('visits.detail', visit_id=visit.id) }}">返回病历</a>
+  </div>
+
+  <div class="sheet">
+    <header>
+      <h1>{{ clinic.clinic_name }}</h1>
+      <div class="kind">门诊病历</div>
+    </header>
+
+    <div class="info">
+      <div><span class="label">姓名：</span>{{ patient.name }}</div>
+      <div><span class="label">性别：</span>{{ patient.gender }}</div>
+      <div><span class="label">年龄：</span>{{ age_text(patient.birth_date, visit.visit_date) }}</div>
+      <div><span class="label">病历号：</span>{{ patient.id|record_no }}</div>
+      <div><span class="label">就诊日期：</span>{{ visit.visit_date }}</div>
+      <div><span class="label">类型：</span>{{ visit.visit_type }}</div>
+      <div class="span2"><span class="label">电话：</span>{{ patient.phone }}</div>
+      {% if patient.occupation or patient.address %}
+        <div class="full"><span class="label">职业 / 住址：</span>{{ patient.occupation }}{% if patient.occupation and patient.address %}　{% endif %}{{ patient.address }}</div>
+      {% endif %}
+      <div class="full"><span class="label">过敏史：</span>{{ patient.allergies or '否认' }}</div>
+      {% if patient.past_history %}<div class="full"><span class="label">既往史：</span>{{ patient.past_history }}</div>{% endif %}
+      {% if patient.family_history %}<div class="full"><span class="label">家族史：</span>{{ patient.family_history }}</div>{% endif %}
+    </div>
+
+    {% for title, rows in sections %}
+      {% if rows %}
+        <h2>{{ title }}</h2>
+        <dl>{% for label, value in rows %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>
+      {% endif %}
+      {% if title == '诊断与治法' and items %}
+        <h2>处方{% if visit.formula_name %}：{{ visit.formula_name }}{% endif %}</h2>
+        <div class="herbs">
+          {% for it in items %}
+            <div>{{ it.herb }} {{ it.dose|num }}{{ it.unit if it.dose is not none }}{% if it.note %}<span class="note">（{{ it.note }}）</span>{% endif %}</div>
+          {% endfor %}
+        </div>
+        <div>共 {{ items|length }} 味{% if visit.dose_count %}，{{ visit.dose_count }} 剂{% endif %}{% if visit.usage %}。{{ visit.usage }}{% endif %}</div>
+      {% endif %}
+    {% endfor %}
+
+    {% if visit.next_visit_date %}
+      <h2>复诊</h2>
+      <div>请于 {{ visit.next_visit_date }} 复诊。</div>
+    {% endif %}
+
+    <div class="sign">
+      <span>医师签名：{{ clinic.doctor_name }}</span>
+      <span>日期：{{ visit.visit_date }}</span>
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

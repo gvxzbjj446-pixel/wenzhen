@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, visit_badge %}
+{% block title %}{{ patient.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ patient.name }}</h1>
+    <div class="sub">病历号 {{ patient.id|record_no }} · 建档于 {{ patient.created_at[:10] }}</div>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="{{ url_for('visits.new', patient_id=patient.id) }}">＋ 新建问诊</a>
+    {% if visits %}
+      <a class="btn" href="{{ url_for('visits.new', patient_id=patient.id, copy_from=visits[0].id) }}">按上次复诊</a>
+    {% endif %}
+    <a class="btn" href="{{ url_for('patients.edit', patient_id=patient.id) }}">编辑资料</a>
+  </div>
+</div>
+
+<div class="layout-aside">
+  <section class="card">
+    <div class="card-head">
+      <h2>就诊记录（{{ visits|length }} 次）</h2>
+      {% if visits %}<span class="muted small">累计收费 ¥{{ total_fee|money }}</span>{% endif %}
+    </div>
+    {% if visits %}
+      <ol class="timeline">
+        {% for v in visits %}
+          <li>
+            <div class="when">
+              <strong><a href="{{ url_for('visits.detail', visit_id=v.id) }}">{{ v.visit_date }}</a></strong>
+              {{ visit_badge(v.visit_type) }}
+              <span class="muted small">第 {{ loop.revindex }} 诊</span>
+            </div>
+            <div class="body">
+              {% if v.chief_complaint %}<div><span class="muted">主诉</span> {{ v.chief_complaint }}</div>{% endif %}
+              {% if v.tcm_disease or v.syndrome %}
+                <div><span class="muted">诊断</span> {{ v.tcm_disease }}{% if v.tcm_disease and v.syndrome %} · {% endif %}{{ v.syndrome }}</div>
+              {% endif %}
+              {% if v|tongue_pulse %}<div><span class="muted">舌脉</span> {{ v|tongue_pulse }}</div>{% endif %}
+              {% if items[v.id] %}
+                <div class="rx"><span class="muted">处方</span>
+                  {% if v.formula_name %}<strong>{{ v.formula_name }}</strong>：{% endif %}{{ items[v.id]|herb_text }}
+                  {% if v.dose_count %}<span class="muted">× {{ v.dose_count }} 剂</span>{% endif %}
+                </div>
+              {% endif %}
+              <div class="actions" style="margin-top:6px">
+                <a class="small" href="{{ url_for('visits.detail', visit_id=v.id) }}">详情</a>
+                <a class="small" href="{{ url_for('visits.edit', visit_id=v.id) }}">编辑</a>
+                <a class="small" href="{{ url_for('visits.new', patient_id=patient.id, copy_from=v.id) }}">以此复诊</a>
+                {% if items[v.id] %}<a class="small" href="{{ url_for('visits.print_view', visit_id=v.id, kind='prescription') }}">打印处方</a>{% endif %}
+              </div>
+            </div>
+          </li>
+        {% endfor %}
+      </ol>
+    {% else %}
+      <div class="empty">还没有就诊记录。<a href="{{ url_for('visits.new', patient_id=patient.id) }}">开始第一次问诊</a></div>
+    {% endif %}
+  </section>
+
+  <aside>
+    <section class="card">
+      <h2>基本资料</h2>
+      <dl class="kv">
+        <dt>性别</dt><dd>{{ patient.gender or '—' }}</dd>
+        <dt>年龄</dt><dd>{{ age_text(patient.birth_date) or '—' }}{% if patient.birth_date %} <span class="muted small">（{{ patient.birth_date }}）</span>{% endif %}</dd>
+        <dt>电话</dt><dd>{{ patient.phone or '—' }}</dd>
+        <dt>职业</dt><dd>{{ patient.occupation or '—' }}</dd>
+        <dt>住址</dt><dd>{{ patient.address or '—' }}</dd>
+      </dl>
+      {% if patient.allergies %}<div class="warn-box">过敏史：{{ patient.allergies }}</div>{% endif %}
+    </section>
+    <section class="card">
+      <h2>病史</h2>
+      <dl class="kv">
+        <dt>既往史</dt><dd>{{ patient.past_history or '—' }}</dd>
+        <dt>家族史</dt><dd>{{ patient.family_history or '—' }}</dd>
+        <dt>备注</dt><dd>{{ patient.notes or '—' }}</dd>
+      </dl>
+    </section>
+    <form method="post" action="{{ url_for('patients.delete', patient_id=patient.id) }}"
+          data-confirm="确定删除患者「{{ patient.name }}」及其全部 {{ visits|length }} 次就诊记录吗？此操作不可恢复。">
+      {{ csrf() }}
+      <button class="btn btn-danger btn-sm" type="submit">删除该患者</button>
+    </form>
+  </aside>
+</div>
+{% endblock %}

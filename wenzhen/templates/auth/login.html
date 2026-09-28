@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}登录{% endblock %}
+{% block main_class %}auth-wrap{% endblock %}
+{% block content %}
+<div class="card auth-card">
+  <div class="brand"><span class="seal">{{ clinic.clinic_name[:1] }}</span>{{ clinic.clinic_name }}</div>
+  <p class="sub">问诊记录系统</p>
+  {% if error %}<div class="alert alert-error" role="alert" style="margin-bottom:14px">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ url_for('auth.login') }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ next }}">
+    <div class="field">
+      <label for="username">用户名</label>
+      <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+    </div>
+    <div class="field">
+      <label for="password">密码</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+    </div>
+    <button class="btn btn-primary btn-lg" type="submit" style="width:100%">登录</button>
+  </form>
+</div>
+{% endblock %}

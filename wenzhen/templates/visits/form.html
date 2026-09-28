@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% from "_macros.html" import errors_box, csrf, herb_editor, patient_summary, rx_grid %}
+{% set editing = visit.id is defined %}
+{% block title %}{{ '编辑问诊' if editing else '问诊' }} · {{ patient.name }}{% endblock %}
+
+{% macro visit_field(f) %}
+  <div class="field{{ ' wide' if f.multiline or f.wide }}{{ ' hidden' if f.female_only and patient.gender == '男' and not visit[f.key] }}">
+    <label for="f-{{ f.key }}">{{ f.label }}</label>
+    {% if f.multiline %}
+      <textarea id="f-{{ f.key }}" name="{{ f.key }}" rows="3" placeholder="{{ f.placeholder }}">{{ visit[f.key] }}</textarea>
+    {% else %}
+      <input type="text" id="f-{{ f.key }}" name="{{ f.key }}" value="{{ visit[f.key] }}" placeholder="{{ f.placeholder }}" autocomplete="off">
+    {% endif %}
+    {% if f.options %}
+      <div class="chips">
+        {% for option in f.options %}<button type="button" class="chip" data-target="f-{{ f.key }}" data-joiner="{{ f.joiner }}">{{ option }}</button>{% endfor %}
+      </div>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ '编辑问诊记录' if editing else '问诊记录' }}</h1>
+    <div class="sub">{{ '修改后点击保存' if editing else '点选常用描述可快速填写，再次点选即取消' }}</div>
+  </div>
+</div>
+
+<div class="card">{{ patient_summary(patient, visit.visit_date) }}</div>
+
+{% if copied_from %}
+  <div class="flashes"><div class="alert alert-info">已带入 {{ copied_from.visit_date }} 的主诉、诊断与处方；舌、脉及各项症状请按本次诊察重新填写。</div></div>
+{% endif %}
+
+<div class="layout-aside">
+  <form class="card" method="post" data-dirty-guard>
+    {{ csrf() }}
+    {{ errors_box(errors) }}
+
+    <div class="form-section">
+      <div class="form-grid">
+        <div class="field">
+          <label for="visit_date" class="required">就诊日期</label>
+          <input type="date" id="visit_date" name="visit_date" value="{{ visit.visit_date }}" required>
+        </div>
+        <div class="field">
+          <label>初诊 / 复诊</label>
+          <div class="radio-group">
+            {% for t in visit_types %}
+              <label><input type="radio" name="visit_type" value="{{ t }}" {{ 'checked' if visit.visit_type == t }}> {{ t }}</label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% for title, fields in sections %}
+      <div class="form-section">
+        <h2>{{ title }}</h2>
+        <div class="form-grid">
+          {% for f in fields %}{{ visit_field(f) }}{% endfor %}
+        </div>
+      </div>
+
+      {% if title == '诊断与治法' %}
+        <div class="form-section">
+          <h2>处方</h2>
+          <div class="form-grid" style="margin-bottom:12px">
+            <div class="field">
+              <label for="formula_name">方名</label>
+              <input type="text" id="formula_name" name="formula_name" value="{{ visit.formula_name }}" placeholder="如：逍遥散加减" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="dose_count">剂数</label>
+              <input type="number" id="dose_count" name="dose_count" min="0" max="999" value="{{ visit.dose_count }}">
+            </div>
+            <div class="field wide">
+              <label for="usage">煎服法</label>
+              <input type="text" id="usage" name="usage" list="usage-list" value="{{ visit.usage }}" autocomplete="off">
+              <datalist id="usage-list">{% for u in usages %}<option value="{{ u }}">{% endfor %}</datalist>
+            </div>
+          </div>
+          {{ herb_editor(items, herbs, units, herb_notes, compat_rules, formulas) }}
+        </div>
+      {% endif %}
+    {% endfor %}
+
+    <div class="form-section">
+      <h2>收费与复诊</h2>
+      <div class="form-grid">
+        <div class="field">
+          <label for="fee">收费（元）</label>
+          <input type="text" id="fee" name="fee" inputmode="decimal" value="{{ visit.fee|num }}" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="next_visit_date">预约复诊日期</label>
+          <input type="date" id="next_visit_date" name="next_visit_date" value="{{ visit.next_visit_date }}">
+          <div class="chips">
+            {% for d in (3, 7, 14, 30) %}<button type="button" class="chip" data-next-days="{{ d }}">{{ d }} 天后</button>{% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">保存</button>
+      <button class="btn" type="submit" name="after" value="print">保存并打印处方</button>
+      <a class="btn" href="{{ url_for('visits.detail', visit_id=visit.id) if editing else url_for('patients.detail', patient_id=patient.id) }}">取消</a>
+    </div>
+  </form>
+
+  <aside class="aside-sticky">
+    <section class="card">
+      <div class="card-head">
+        <h2>上次就诊</h2>
+        {% if last %}<a class="small" href="{{ url_for('visits.detail', visit_id=last.id) }}" target="_blank" rel="noopener">{{ last.visit_date }}</a>{% endif %}
+      </div>
+      {% if last %}
+        <dl class="kv small">
+          {% if last.chief_complaint %}<dt>主诉</dt><dd>{{ last.chief_complaint }}</dd>{% endif %}
+          {% if last.tcm_disease %}<dt>中医诊断</dt><dd>{{ last.tcm_disease }}</dd>{% endif %}
+          {% if last.syndrome %}<dt>证型</dt><dd>{{ last.syndrome }}</dd>{% endif %}
+          {% if last|tongue_pulse %}<dt>舌脉</dt><dd>{{ last|tongue_pulse }}</dd>{% endif %}
+          {% if last.treatment_principle %}<dt>治法</dt><dd>{{ last.treatment_principle }}</dd>{% endif %}
+          {% if last.advice %}<dt>医嘱</dt><dd>{{ last.advice }}</dd>{% endif %}
+        </dl>
+        {% if last_items %}
+          <p class="muted small" style="margin:12px 0 6px">处方{% if last.formula_name %}：{{ last.formula_name }}{% endif %}{% if last.dose_count %} × {{ last.dose_count }} 剂{% endif %}</p>
+          {{ rx_grid(last_items) }}
+        {% endif %}
+        {% if not editing and not copied_from %}
+          <p style="margin-top:12px"><a class="btn btn-sm" href="{{ url_for('visits.new', patient_id=patient.id, copy_from=last.id) }}">带入上次诊断与处方</a></p>
+        {% endif %}
+      {% else %}
+        <div class="empty">无既往就诊记录</div>
+      {% endif %}
+    </section>
+  </aside>
+</div>
+{% endblock %}

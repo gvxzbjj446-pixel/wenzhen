@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "_macros.html" import errors_box %}
+{% block title %}首次设置{% endblock %}
+{% block main_class %}auth-wrap{% endblock %}
+{% block content %}
+<div class="card auth-card">
+  <div class="brand"><span class="seal">{{ clinic.clinic_name[:1] }}</span>{{ clinic.clinic_name }}</div>
+  <p class="sub">首次使用，请创建医师账户</p>
+  {{ errors_box(errors) }}
+  <form method="post" action="{{ url_for('auth.setup') }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="field">
+      <label for="clinic_name" class="required">诊所名称</label>
+      <input type="text" id="clinic_name" name="clinic_name" value="{{ request.form.clinic_name or clinic.clinic_name }}" required>
+    </div>
+    <div class="field">
+      <label for="doctor_name">医师姓名（打印在处方上）</label>
+      <input type="text" id="doctor_name" name="doctor_name" value="{{ request.form.doctor_name or clinic.doctor_name }}">
+    </div>
+    <div class="field">
+      <label for="username" class="required">登录用户名</label>
+      <input type="text" id="username" name="username" value="{{ request.form.username }}" autocomplete="username" required>
+    </div>
+    <div class="field">
+      <label for="display_name">显示名称</label>
+      <input type="text" id="display_name" name="display_name" value="{{ request.form.display_name }}" placeholder="如：王医生">
+    </div>
+    <div class="field">
+      <label for="password" class="required">密码（至少 6 位）</label>
+      <input type="password" id="password" name="password" autocomplete="new-password" required>
+    </div>
+    <div class="field">
+      <label for="password2" class="required">再次输入密码</label>
+      <input type="password" id="password2" name="password2" autocomplete="new-password" required>
+    </div>
+    <button class="btn btn-primary btn-lg" type="submit" style="width:100%">完成设置</button>
+  </form>
+</div>
+{% endblock %}

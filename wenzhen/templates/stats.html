@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}统计{% endblock %}
+
+{% macro bar(value, maximum, tip) %}
+  {% set pct = (value / maximum * 100) if maximum else 0 %}
+  {# 很小的非零值至少显示 1%，零值不画 #}
+  <div class="bar" title="{{ tip }}"><span style="width: {{ ([pct, 1]|max if value > 0 else 0)|round(1) }}%"></span></div>
+{% endmacro %}
+
+{% macro rank_table(title, rows, unit='次') %}
+  <section class="card">
+    <h2>{{ title }}</h2>
+    {% if rows %}
+      {% set top = rows|map(attribute='hits')|max %}
+      <table class="table">
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td>{{ r.label }}</td>
+              <td class="bar-cell">{{ bar(r.hits, top, r.label ~ '：' ~ r.hits ~ unit) }}</td>
+              <td class="num">{{ r.hits }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty">暂无数据</div>
+    {% endif %}
+  </section>
+{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>统计</h1>
+    <div class="sub">{{ start }} 至 {{ end }}</div>
+  </div>
+  <form class="search-bar" method="get">
+    <div class="field"><label for="start">从</label><input type="date" id="start" name="start" value="{{ start }}"></div>
+    <div class="field"><label for="end">到</label><input type="date" id="end" name="end" value="{{ end }}"></div>
+    <button class="btn btn-primary" type="submit">统计</button>
+  </form>
+</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="label">接诊人次</div><div class="value">{{ summary.visits }}</div></div>
+  <div class="kpi"><div class="label">就诊患者</div><div class="value">{{ summary.patients }}<small>人</small></div></div>
+  <div class="kpi"><div class="label">其中初诊</div><div class="value">{{ summary.first_visits }}<small>人次</small></div></div>
+  <div class="kpi"><div class="label">收费合计</div><div class="value">¥{{ summary.revenue|money }}</div></div>
+</div>
+
+<section class="card">
+  <h2>按月统计</h2>
+  {% if monthly %}
+    {% set top = monthly|map(attribute='visits')|max %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>月份</th><th class="bar-cell">接诊人次</th><th class="num">人次</th><th class="num">患者数</th><th class="num">初诊</th><th class="num">收费（元）</th></tr></thead>
+        <tbody>
+          {% for m in monthly %}
+            <tr>
+              <td class="nowrap">{{ m.month }}</td>
+              <td class="bar-cell">{{ bar(m.visits, top, m.month ~ '：' ~ m.visits ~ ' 人次') }}</td>
+              <td class="num">{{ m.visits }}</td>
+              <td class="num">{{ m.patients }}</td>
+              <td class="num">{{ m.first_visits }}</td>
+              <td class="num">{{ m.revenue|money }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr><td>合计</td><td></td><td class="num">{{ summary.visits }}</td><td class="num">{{ summary.patients }}</td><td class="num">{{ summary.first_visits }}</td><td class="num">{{ summary.revenue|money }}</td></tr>
+        </tfoot>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty">这段时间没有就诊记录。</div>
+  {% endif %}
+</section>
+
+<div class="grid grid-2">
+  {{ rank_table('常见中医诊断', diseases) }}
+  {{ rank_table('常见证型', syndromes) }}
+  {{ rank_table('常用方', formulas) }}
+
+  <section class="card">
+    <h2>就诊患者构成（{{ patient_count }} 人）</h2>
+    {% if patient_count %}
+      <table class="table">
+        <tbody>
+          <tr><th class="group" colspan="3">性别</th></tr>
+          {% for label, n in genders.items() if n or label != '未填' %}
+            <tr><td>{{ label }}</td><td class="bar-cell">{{ bar(n, patient_count, label ~ '：' ~ n ~ ' 人') }}</td><td class="num">{{ n }}</td></tr>
+          {% endfor %}
+          <tr><th class="group" colspan="3">年龄段</th></tr>
+          {% for label, n in ages.items() if n or label != '未填' %}
+            <tr><td class="nowrap">{{ label }}</td><td class="bar-cell">{{ bar(n, patient_count, label ~ '：' ~ n ~ ' 人') }}</td><td class="num">{{ n }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty">暂无数据</div>
+    {% endif %}
+  </section>
+</div>
+
+<section class="card" style="margin-top:20px">
+  <h2>常用药物（前 20）</h2>
+  {% if herbs %}
+    {% set top = herbs|map(attribute='uses')|max %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>药名</th><th class="bar-cell">使用处方数</th><th class="num">处方数</th><th class="num">平均剂量</th></tr></thead>
+        <tbody>
+          {% for h in herbs %}
+            <tr>
+              <td>{{ h.herb }}</td>
+              <td class="bar-cell">{{ bar(h.uses, top, h.herb ~ '：' ~ h.uses ~ ' 张处方') }}</td>
+              <td class="num">{{ h.uses }}</td>
+              <td class="num">{% if h.avg_dose is not none %}{{ h.avg_dose|num }} g{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty">暂无数据</div>
+  {% endif %}
+</section>
+{% endblock %}

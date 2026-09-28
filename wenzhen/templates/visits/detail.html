@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, patient_summary, rx_grid, visit_badge %}
+{% block title %}{{ patient.name }} {{ visit.visit_date }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ visit.visit_date }} 门诊病历 {{ visit_badge(visit.visit_type) }}</h1>
+    <div class="sub">
+      第 {{ visit_no }} / {{ visit_total }} 诊
+      {% if prev_id %} · <a href="{{ url_for('visits.detail', visit_id=prev_id) }}">← 上一诊</a>{% endif %}
+      {% if next_id %} · <a href="{{ url_for('visits.detail', visit_id=next_id) }}">下一诊 →</a>{% endif %}
+    </div>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="{{ url_for('visits.new', patient_id=patient.id, copy_from=visit.id) }}">以此复诊</a>
+    <a class="btn" href="{{ url_for('visits.edit', visit_id=visit.id) }}">编辑</a>
+    {% if items %}<a class="btn" href="{{ url_for('visits.print_view', visit_id=visit.id, kind='prescription') }}">打印处方</a>{% endif %}
+    <a class="btn" href="{{ url_for('visits.print_view', visit_id=visit.id, kind='record') }}">打印病历</a>
+  </div>
+</div>
+
+<div class="card">{{ patient_summary(patient, visit.visit_date) }}</div>
+
+<div class="card">
+  {% for title, rows in sections %}
+    {% if rows %}
+      <div class="section-block">
+        <h3>{{ title }}</h3>
+        <dl class="kv">
+          {% for label, value in rows %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}
+        </dl>
+      </div>
+    {% endif %}
+
+    {% if title == '诊断与治法' and items %}
+      <div class="section-block">
+        <h3>处方{% if visit.formula_name %}：{{ visit.formula_name }}{% endif %}</h3>
+        {{ rx_grid(items) }}
+        <p class="muted small" style="margin-top:8px">
+          共 {{ items|length }} 味{% if total_grams %}，每剂约 {{ total_grams|num }} g{% endif %}
+          {% if visit.dose_count %} · {{ visit.dose_count }} 剂{% endif %}
+          {% if visit.usage %} · {{ visit.usage }}{% endif %}
+        </p>
+        {% for c in conflicts %}
+          <div class="alert alert-warning" style="margin-top:8px">⚠ {{ c.kind }}：{{ c.herbs|join('、') }}（{{ c.desc }}）</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endfor %}
+
+  <div class="section-block">
+    <h3>收费与复诊</h3>
+    <dl class="kv">
+      <dt>收费</dt><dd>¥{{ visit.fee|money }}</dd>
+      <dt>预约复诊</dt><dd>{{ visit.next_visit_date or '未预约' }}</dd>
+      <dt>记录时间</dt><dd class="muted">{{ visit.created_at }}{% if visit.updated_at != visit.created_at %}（修改于 {{ visit.updated_at }}）{% endif %}</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="actions">
+  {% if items %}<a class="btn btn-sm" href="{{ url_for('formulas.new', from_visit=visit.id) }}">将此处方存为经验方</a>{% endif %}
+  <form class="inline" method="post" action="{{ url_for('visits.delete', visit_id=visit.id) }}"
+        data-confirm="确定删除 {{ visit.visit_date }} 的这条就诊记录吗？此操作不可恢复。">
+    {{ csrf() }}
+    <button class="btn btn-danger btn-sm" type="submit">删除此记录</button>
+  </form>
+</div>
+{% endblock %}

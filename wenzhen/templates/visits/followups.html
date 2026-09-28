@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}复诊提醒{% endblock %}
+
+{% macro followup_table(rows, overdue=False) %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>预约日期</th><th>患者</th><th>电话</th><th>上次就诊</th><th>诊断</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for f in rows %}
+          <tr>
+            <td class="nowrap">
+              {{ f.next_visit_date }}
+              {% if f.next_visit_date == today %}<span class="badge badge-first">今天</span>{% elif overdue %}<span class="badge badge-warning">逾期</span>{% endif %}
+            </td>
+            <td class="nowrap"><a href="{{ url_for('patients.detail', patient_id=f.patient_id) }}">{{ f.name }}</a>
+              <span class="muted small">{{ f.gender }} {{ age_text(f.birth_date) }}</span></td>
+            <td class="nowrap">{{ f.phone or '—' }}</td>
+            <td class="nowrap"><a href="{{ url_for('visits.detail', visit_id=f.id) }}">{{ f.visit_date }}</a></td>
+            <td>{{ f.tcm_disease }}{% if f.syndrome %} <span class="muted small">{{ f.syndrome }}</span>{% endif %}</td>
+            <td class="nowrap"><a class="btn btn-sm" href="{{ url_for('visits.new', patient_id=f.patient_id, copy_from=f.id) }}">复诊</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>复诊提醒</h1>
+    <div class="sub">根据问诊时填写的“预约复诊日期”生成；患者之后已来诊的不再提醒</div>
+  </div>
+  <form class="actions" method="get">
+    <label for="days" class="muted" style="margin:0">显示未来</label>
+    <select id="days" name="days" onchange="this.form.submit()" style="width:auto">
+      {% for d in (7, 14, 30, 60) %}<option value="{{ d }}" {{ 'selected' if d == days }}>{{ d }} 天</option>{% endfor %}
+    </select>
+  </form>
+</div>
+
+<section class="card">
+  <h2>即将复诊（{{ upcoming|length }}）</h2>
+  {% if upcoming %}{{ followup_table(upcoming) }}{% else %}<div class="empty">未来 {{ days }} 天内没有预约复诊。</div>{% endif %}
+</section>
+
+<section class="card">
+  <h2>逾期未来（近 60 天，{{ overdue|length }}）</h2>
+  {% if overdue %}{{ followup_table(overdue, overdue=True) }}{% else %}<div class="empty">没有逾期未复诊的患者。</div>{% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# 患者数据与密钥，切勿提交
+instance/
+*.sqlite3

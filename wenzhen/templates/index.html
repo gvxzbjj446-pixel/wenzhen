@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% from "_macros.html" import visit_badge %}
+{% block title %}工作台{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>工作台</h1>
+    <div class="sub">{{ today }}</div>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="{{ url_for('patients.new') }}">＋ 新患者建档</a>
+  </div>
+</div>
+
+<div class="card">
+  <form class="hero-search" method="get" action="{{ url_for('patients.index') }}">
+    <input type="search" name="q" placeholder="搜索患者：姓名 / 电话 / 病历号" aria-label="搜索患者" autofocus>
+    <button class="btn btn-primary btn-lg" type="submit">搜索</button>
+  </form>
+</div>
+
+<div class="kpis">
+  <div class="kpi">
+    <div class="label">今日接诊</div>
+    <div class="value">{{ kpis.today_visits }}<small>人次</small></div>
+    <div class="note">收费 ¥{{ kpis.today_revenue|money }}</div>
+  </div>
+  <div class="kpi">
+    <div class="label">本月接诊</div>
+    <div class="value">{{ kpis.month_visits }}<small>人次</small></div>
+    <div class="note">收费 ¥{{ kpis.month_revenue|money }}</div>
+  </div>
+  <div class="kpi">
+    <div class="label">患者档案</div>
+    <div class="value">{{ kpis.patients }}<small>人</small></div>
+    <div class="note">本月新建 {{ kpis.month_new_patients }} 人</div>
+  </div>
+  <div class="kpi">
+    <div class="label">今日应复诊</div>
+    <div class="value">{{ due_today|length }}<small>人</small></div>
+    <div class="note">{% if overdue %}另有 {{ overdue|length }} 人逾期未来{% else %}无逾期{% endif %}</div>
+  </div>
+</div>
+
+<div class="layout-aside">
+  <section class="card">
+    <div class="card-head">
+      <h2>今日就诊</h2>
+      <a class="small" href="{{ url_for('visits.index') }}">全部就诊记录 →</a>
+    </div>
+    {% if today_visits %}
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>患者</th><th></th><th>主诉</th><th>诊断</th><th class="num">收费</th><th></th></tr></thead>
+          <tbody>
+          {% for v in today_visits %}
+            <tr>
+              <td class="nowrap"><a href="{{ url_for('patients.detail', patient_id=v.patient_id) }}">{{ v.name }}</a>
+                <div class="muted small">{{ v.gender }} {{ age_text(v.birth_date) }}</div></td>
+              <td>{{ visit_badge(v.visit_type) }}</td>
+              <td>{{ v.chief_complaint }}</td>
+              <td>{{ v.tcm_disease }}{% if v.syndrome %}<div class="muted small">{{ v.syndrome }}</div>{% endif %}</td>
+              <td class="num">{{ v.fee|money }}</td>
+              <td class="nowrap"><a href="{{ url_for('visits.detail', visit_id=v.id) }}">查看</a></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty">今天还没有就诊记录。<br>搜索老患者，或为新患者建档后开始问诊。</div>
+    {% endif %}
+  </section>
+
+  <aside>
+    <section class="card">
+      <div class="card-head">
+        <h2>复诊提醒</h2>
+        <a class="small" href="{{ url_for('visits.followups') }}">全部 →</a>
+      </div>
+      {% if not (due_today or overdue or upcoming) %}
+        <div class="empty">近期没有预约复诊的患者。</div>
+      {% endif %}
+      <ul class="list">
+        {% for f in due_today %}
+          <li>
+            <div class="main"><a href="{{ url_for('patients.detail', patient_id=f.patient_id) }}">{{ f.name }}</a>
+              <div class="meta">{{ f.phone or '无电话' }} · {{ f.tcm_disease or f.syndrome or '上次 ' ~ f.visit_date }}</div></div>
+            <span class="badge badge-first">今天</span>
+          </li>
+        {% endfor %}
+        {% for f in overdue[-5:]|reverse %}
+          <li>
+            <div class="main"><a href="{{ url_for('patients.detail', patient_id=f.patient_id) }}">{{ f.name }}</a>
+              <div class="meta">{{ f.phone or '无电话' }} · 约 {{ f.next_visit_date[5:] }}</div></div>
+            <span class="badge badge-warning">逾期</span>
+          </li>
+        {% endfor %}
+        {% for f in upcoming[:5] %}
+          <li>
+            <div class="main"><a href="{{ url_for('patients.detail', patient_id=f.patient_id) }}">{{ f.name }}</a>
+              <div class="meta">{{ f.phone or '无电话' }}</div></div>
+            <span class="badge">{{ f.next_visit_date[5:] }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  </aside>
+</div>
+{% endblock %}

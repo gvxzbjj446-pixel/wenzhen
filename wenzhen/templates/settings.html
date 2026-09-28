@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% from "_macros.html" import errors_box, csrf %}
+{% block title %}设置{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>设置</h1>
+  <div class="actions"><a class="btn" href="{{ url_for('main.account') }}">账户与密码</a></div>
+</div>
+
+<div class="grid grid-2">
+  <form class="card" method="post" style="margin:0">
+    {{ csrf() }}
+    <h2>诊所信息</h2>
+    <p class="muted small">显示在页面顶部，并打印在处方笺和病历上。</p>
+    {{ errors_box(errors) }}
+    {% for key, label in fields %}
+      <div class="field" style="margin-bottom:12px">
+        <label for="{{ key }}" class="{{ 'required' if key == 'clinic_name' }}">{{ label }}</label>
+        {% if key == 'default_dose_count' %}
+          <input type="number" id="{{ key }}" name="{{ key }}" min="0" max="999" value="{{ values[key] }}">
+        {% else %}
+          <input type="text" id="{{ key }}" name="{{ key }}" value="{{ values[key] }}">
+        {% endif %}
+      </div>
+    {% endfor %}
+    <button class="btn btn-primary" type="submit">保存设置</button>
+  </form>
+
+  <section class="card" style="margin:0">
+    <h2>数据备份与导出</h2>
+    <p class="muted small">当前共有患者 {{ counts.patients }} 人、就诊记录 {{ counts.visits }} 条、方剂 {{ counts.formulas }} 首。</p>
+    <div class="actions" style="margin:12px 0 16px">
+      <a class="btn btn-primary" href="{{ url_for('main.backup') }}">下载完整备份</a>
+      <a class="btn" href="{{ url_for('main.export_patients') }}">导出患者（CSV）</a>
+      <a class="btn" href="{{ url_for('main.export_visits') }}">导出就诊记录（CSV）</a>
+    </div>
+    <p class="small">系统每天首次使用时会自动备份一次，保留最近 30 份，存放在：</p>
+    <p class="small"><code>{{ backup_folder }}</code></p>
+    <p class="muted small">建议定期把“下载完整备份”得到的文件另存到 U 盘或网盘。恢复方法见 README。</p>
+    {% if backups %}
+      <table class="table" style="margin-top:8px">
+        <thead><tr><th>最近的自动备份</th><th>时间</th><th class="num">大小</th></tr></thead>
+        <tbody>
+          {% for b in backups %}
+            <tr><td class="small">{{ b.name }}</td><td class="small nowrap">{{ b.time }}</td><td class="num small">{{ '%.0f'|format(b.size_kb) }} KB</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

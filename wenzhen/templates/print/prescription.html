@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>处方笺 · {{ patient.name }} · {{ visit.visit_date }}</title>
+  <style>
+    @page { size: A5 portrait; margin: 10mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e9e6e0; color: #111;
+           font-family: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", "Source Han Serif SC", serif; }
+    .toolbar { display: flex; gap: 8px; justify-content: center; padding: 12px;
+               font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    .toolbar button, .toolbar a { padding: 8px 18px; border: 1px solid #bbb; border-radius: 6px; background: #fff;
+                                  color: #222; font-size: 14px; text-decoration: none; cursor: pointer; }
+    .toolbar .primary { background: #2f6b5b; border-color: #2f6b5b; color: #fff; }
+    .sheet { width: 148mm; min-height: 210mm; margin: 0 auto 24px; padding: 10mm; background: #fff;
+             box-shadow: 0 2px 10px rgba(0,0,0,.15); display: flex; flex-direction: column; }
+    header { text-align: center; padding-bottom: 3mm; border-bottom: 2px solid #111; }
+    h1 { margin: 0; font-size: 19pt; letter-spacing: 2px; }
+    .kind { margin-top: 1mm; font-size: 13pt; letter-spacing: 10px; }
+    .contact { margin-top: 1mm; font-size: 8.5pt; color: #444; }
+    .meta { display: flex; justify-content: space-between; font-size: 9.5pt; padding: 2mm 0; }
+    .info { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 1.5mm 4mm; padding: 2.5mm 0; font-size: 10.5pt;
+            border-top: 1px solid #111; border-bottom: 1px solid #111; }
+    .info .full { grid-column: 1 / -1; }
+    .label { color: #444; }
+    .allergy { font-weight: bold; }
+    .rp { margin: 3mm 0 2mm; font-size: 17pt; font-weight: bold; font-style: italic; }
+    .herbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm 2mm; align-content: start;
+             font-size: 12pt; flex: 1; }
+    .herb .dose { margin-left: 1mm; }
+    .herb .note { display: block; font-size: 8.5pt; }
+    .summary { margin-top: 4mm; padding-top: 2.5mm; border-top: 1px dashed #666; font-size: 10.5pt; line-height: 1.7; }
+    footer { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm; margin-top: 5mm; padding-top: 2.5mm;
+             border-top: 1px solid #111; font-size: 10pt; }
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none; }
+      .sheet { width: auto; min-height: 190mm; margin: 0; padding: 0; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="primary" type="button" data-print>打印</button>
+    <a href="{{ url_for('visits.detail', visit_id=visit.id) }}">返回病历</a>
+  </div>
+
+  <div class="sheet">
+    <header>
+      <h1>{{ clinic.clinic_name }}</h1>
+      <div class="kind">处方笺</div>
+      {% if clinic.clinic_address or clinic.clinic_phone %}
+        <div class="contact">{{ clinic.clinic_address }}{% if clinic.clinic_address and clinic.clinic_phone %}　{% endif %}{% if clinic.clinic_phone %}电话：{{ clinic.clinic_phone }}{% endif %}</div>
+      {% endif %}
+    </header>
+
+    <div class="meta">
+      <span>病历号：{{ patient.id|record_no }}</span>
+      <span>{{ visit.visit_type }}</span>
+      <span>日期：{{ visit.visit_date }}</span>
+    </div>
+
+    <div class="info">
+      <div><span class="label">姓名：</span>{{ patient.name }}</div>
+      <div><span class="label">性别：</span>{{ patient.gender }}</div>
+      <div><span class="label">年龄：</span>{{ age_text(patient.birth_date, visit.visit_date) }}</div>
+      <div class="full"><span class="label">临床诊断：</span>
+        {{ visit.tcm_disease }}{% if visit.syndrome %}（{{ visit.syndrome }}）{% endif %}{% if visit.western_diagnosis %}{% if visit.tcm_disease or visit.syndrome %}；{% endif %}{{ visit.western_diagnosis }}{% endif %}
+      </div>
+      {% if patient.allergies %}<div class="full allergy"><span class="label">过敏史：</span>{{ patient.allergies }}</div>{% endif %}
+    </div>
+
+    <div class="rp">Rp.{% if visit.formula_name %}<span style="font-size:12pt;font-style:normal;font-weight:normal;margin-left:4mm">{{ visit.formula_name }}</span>{% endif %}</div>
+
+    <div class="herbs">
+      {% for it in items %}
+        <div class="herb">{{ it.herb }}<span class="dose">{{ it.dose|num }}{{ it.unit if it.dose is not none }}</span>{% if it.note %}<span class="note">（{{ it.note }}）</span>{% endif %}</div>
+      {% endfor %}
+    </div>
+
+    <div class="summary">
+      <div>共 {{ items|length }} 味{% if visit.dose_count %}　×　{{ visit.dose_count }} 剂{% endif %}{% if total_grams %}　（每剂约 {{ total_grams|num }} g）{% endif %}</div>
+      {% if visit.usage %}<div><span class="label">用法：</span>{{ visit.usage }}</div>{% endif %}
+      {% if visit.advice %}<div><span class="label">医嘱：</span>{{ visit.advice }}</div>{% endif %}
+    </div>
+
+    <footer>
+      <div>医师：{{ clinic.doctor_name }}</div>
+      <div>调配：</div>
+      <div>核对：</div>
+      <div>金额：{% if visit.fee %}¥{{ visit.fee|money }}{% endif %}</div>
+    </footer>
+  </div>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
