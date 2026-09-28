@@ -17,6 +17,7 @@ class ConsultationForm(HTMLParser):
         self.data = MultiDict()
         self.details = {}
         self.submitters = set()
+        self.submit_order = []
         self.in_form = False
         self.template_depth = 0
         self.textarea = None
@@ -35,6 +36,8 @@ class ConsultationForm(HTMLParser):
         if tag == "details" and "id" in attrs:
             self.details[attrs["id"]] = "open" in attrs
         name = attrs.get("name")
+        if tag == "button" and attrs.get("type", "submit") == "submit" and "disabled" not in attrs:
+            self.submit_order.append((name, attrs.get("value", "")))
         if not name or "disabled" in attrs:
             return
         if tag == "button":
@@ -94,6 +97,8 @@ def test_new_consultation_keeps_optional_sections_collapsed(client):
     assert form.data.getlist("visit_type") == ["初诊"]
     assert form.data.getlist("herb_name") == []  # Inert template rows are not submitted.
     assert {("after", "therapy"), ("after", "record")} <= form.submitters
+    # Enter in a normal text field activates the first submitter: save, not print.
+    assert form.submit_order[0] == (None, "")
 
 
 def test_edit_roundtrip_preserves_all_historical_fields_and_prescription(client, db):
