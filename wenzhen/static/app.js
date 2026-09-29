@@ -466,6 +466,93 @@
     });
 
     var select = root.querySelector("[data-formula-select]");
+    var formulaSearch = root.querySelector("[data-formula-search]");
+    var formulaStatus = root.querySelector("[data-formula-status]");
+    var formulaPreview = root.querySelector("[data-formula-preview]");
+    var formulaButtons = root.querySelectorAll("[data-formula-apply]");
+    var visibleFormulas = formulas.slice();
+
+    function selectedFormula() {
+      return select && visibleFormulas.filter(function (f) { return String(f.id) === select.value; })[0];
+    }
+
+    function previewLine(name, text) {
+      if (!formulaPreview) return;
+      var line = formulaPreview.querySelector("[data-formula-" + name + "]");
+      if (!line) return;
+      line.textContent = text;
+      line.classList.toggle("hidden", !text);
+    }
+
+    function refreshFormulaPreview() {
+      var formula = selectedFormula();
+      formulaButtons.forEach(function (btn) { btn.disabled = !formula; });
+      if (formulaPreview) formulaPreview.classList.toggle("hidden", !formula);
+      ["title", "source", "indication", "composition", "usage", "notes"].forEach(function (name) {
+        previewLine(name, "");
+      });
+      if (formulaStatus) {
+        formulaStatus.textContent = !formulas.length ? "方剂库暂无方剂，请先添加方剂。" :
+          (!visibleFormulas.length ? "未找到匹配的方剂，请调整关键词。" :
+            (formula ? "已选择「" + formula.name + "」，核对后点击引用按钮。" :
+              "找到 " + visibleFormulas.length + " 首方剂，请选择后引用。"));
+      }
+      if (!formula) return;
+      previewLine("title", formula.name);
+      previewLine("source", formula.source ? "来源：" + formula.source : "");
+      previewLine("indication", formula.indication ? "主治参考：" + formula.indication : "");
+      previewLine("composition", "组成：" + (formula.items || []).map(function (item) {
+        return item.herb + (item.dose == null || item.dose === "" ? "（剂量未填写）" :
+          " " + item.dose + (item.unit || "g")) + (item.note ? "（" + item.note + "）" : "");
+      }).join(" · "));
+      previewLine("usage", "用法：" + (formula.usage || "未填写"));
+      previewLine("notes", formula.notes ? "备注：" + formula.notes : "");
+    }
+
+    function filterFormulas() {
+      var tokens = (formulaSearch ? formulaSearch.value : "").toLowerCase().trim().split(/\s+/).filter(Boolean);
+      var previous = select.value;
+      visibleFormulas = formulas.filter(function (formula) {
+        var haystack = [formula.name, formula.source, formula.indication, formula.notes].concat(
+          (formula.items || []).map(function (item) { return item.herb; })
+        ).join(" ").toLowerCase();
+        return tokens.every(function (token) { return haystack.indexOf(token) >= 0; });
+      });
+      // User data is rendered as text, never interpreted as HTML.
+      select.textContent = "";
+      var placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = visibleFormulas.length ? "— 从方剂库引用 —" :
+        (formulas.length ? "— 无匹配方剂 —" : "— 方剂库为空 —");
+      select.appendChild(placeholder);
+      visibleFormulas.forEach(function (formula) {
+        var option = document.createElement("option");
+        option.value = String(formula.id);
+        option.textContent = formula.name;
+        select.appendChild(option);
+      });
+      select.value = visibleFormulas.some(function (formula) { return String(formula.id) === previous; }) ? previous : "";
+      select.disabled = !visibleFormulas.length;
+      refreshFormulaPreview();
+    }
+
+    if (select) {
+      select.addEventListener("change", refreshFormulaPreview);
+      // Looking through templates alone has not changed the prescription.
+      select.addEventListener("input", function (e) { e.stopPropagation(); });
+      if (formulaSearch) {
+        formulaSearch.addEventListener("input", function (e) {
+          e.stopPropagation();
+          filterFormulas();
+        });
+        formulaSearch.addEventListener("keydown", function (e) {
+          if (e.key !== "Enter" || e.isComposing) return;
+          e.preventDefault();
+          if (!select.disabled) select.focus();
+        });
+      }
+      filterFormulas();
+    }
 
     function applyFormula(formula, replace) {
       if (replace) tbody.innerHTML = "";
@@ -479,10 +566,10 @@
       if (form) form.dispatchEvent(new Event("input"));
     }
 
-    root.querySelectorAll("[data-formula-apply]").forEach(function (btn) {
+    formulaButtons.forEach(function (btn) {
       btn.addEventListener("click", function () {
-        var formula = formulas.filter(function (f) { return String(f.id) === select.value; })[0];
-        if (!formula) { select.focus(); return; }
+        var formula = selectedFormula();
+        if (!formula) { if (select) select.focus(); return; }
         var replace = btn.dataset.formulaApply === "replace";
         if (!replace || !rows().some(function (r) { return !isBlank(r); })) {
           applyFormula(formula, replace);

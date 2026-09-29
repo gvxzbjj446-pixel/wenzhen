@@ -18,6 +18,7 @@
       <a href="{{ url_for('main.index') }}" class="{{ 'active' if ep == 'main.index' }}">工作台</a>
       <a href="{{ url_for('visits.index') }}" class="{{ 'active' if ep.startswith('visits.') or ep.startswith('patients.') }}">问诊记录</a>
       <a href="{{ url_for('therapy.index') }}" class="{{ 'active' if ep.startswith('therapy.') }}">理疗方案</a>
+      <a href="{{ url_for('formulas.index') }}" class="{{ 'active' if ep.startswith('formulas.') }}">方剂库</a>
       <a href="{{ url_for('main.stats') }}" class="{{ 'active' if ep == 'main.stats' }}">数据分析</a>
     </nav>
     <div class="userbox">

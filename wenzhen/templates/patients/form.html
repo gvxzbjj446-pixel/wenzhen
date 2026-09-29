@@ -9,6 +9,10 @@
 <form class="card" method="post" data-dirty-guard>
   {{ csrf() }}
   {{ errors_box(errors) }}
+  {% if applied_formula %}
+    <input type="hidden" name="from_formula" value="{{ applied_formula.id }}">
+    <p class="alert alert-info">建档后点击“保存并开始问诊”，将带入方剂「{{ applied_formula.name }}」供医师核对加减。</p>
+  {% endif %}
   <div class="form-section">
     <h2>基本信息</h2>
     <div class="form-grid">

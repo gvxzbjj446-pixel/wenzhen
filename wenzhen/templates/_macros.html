@@ -67,13 +67,29 @@
 {% macro herb_editor(items, herbs, units, herb_notes, compat_rules, formulas=None) %}
   <div class="herb-editor" data-herb-editor>
     {% if formulas is not none %}
-      <div class="herb-tools">
-        <select data-formula-select aria-label="选择方剂">
-          <option value="">— 从方剂库引用 —</option>
-          {% for f in formulas %}<option value="{{ f.id }}">{{ f.name }}</option>{% endfor %}
-        </select>
-        <button type="button" class="btn btn-sm" data-formula-apply="replace">替换为此方</button>
-        <button type="button" class="btn btn-sm" data-formula-apply="append">加入此方药物</button>
+      <div class="formula-picker">
+        <div class="field">
+          <label for="formula-search">查找方剂</label>
+          <input type="search" id="formula-search" data-formula-search placeholder="搜索方名、来源、主治或药名" autocomplete="off" aria-controls="formula-select">
+        </div>
+        <div class="herb-tools">
+          <select id="formula-select" data-formula-select aria-label="选择方剂" aria-describedby="formula-status">
+            <option value="">— 从方剂库引用 —</option>
+            {% for f in formulas %}<option value="{{ f.id }}">{{ f.name }}</option>{% endfor %}
+          </select>
+          <button type="button" class="btn btn-sm" data-formula-apply="replace" disabled>替换为此方</button>
+          <button type="button" class="btn btn-sm" data-formula-apply="append" disabled>加入此方药物</button>
+        </div>
+        <p class="muted small" id="formula-status" data-formula-status role="status">{% if formulas %}共 {{ formulas|length }} 首方剂，选择后可预览并引用。{% else %}方剂库暂无方剂，请先添加方剂。{% endif %}</p>
+        <div class="info-box small formula-preview hidden" data-formula-preview aria-live="polite">
+          <strong data-formula-title></strong>
+          <div data-formula-source></div>
+          <div data-formula-indication></div>
+          <div data-formula-composition></div>
+          <div data-formula-usage></div>
+          <div data-formula-notes></div>
+        </div>
+        <p class="muted small">引用仅填写本次处方，不修改方剂库；剂量、用法须由接诊医师核对。<a href="{{ url_for('formulas.index') }}">管理方剂库</a></p>
       </div>
       <script type="application/json" id="formula-data">{{ formulas|tojson }}</script>
     {% endif %}

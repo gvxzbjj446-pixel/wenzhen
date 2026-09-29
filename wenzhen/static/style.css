@@ -660,6 +660,13 @@ code.path { word-break: break-all; font-size: 13px; }
 .optional-section > summary .small { font-weight: 400; margin-left: 8px; }
 .optional-section[open] > summary { margin-bottom: 16px; }
 .optional-tools { margin: 12px 0; }
+.formula-picker { padding: 14px; margin-bottom: 16px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.formula-filters { margin-bottom: 12px; }
+.formula-filters input[type="search"] { flex: 1 1 260px; width: auto; }
+.formula-filters select { flex: 0 1 260px; width: auto; max-width: 100%; }
+.formula-picker > .field { margin-bottom: 10px; }
+.formula-preview { margin: 10px 0; padding: 12px; background: var(--primary-soft); border-radius: var(--radius-sm); overflow-wrap: anywhere; white-space: pre-line; }
+.formula-preview strong { display: block; margin-bottom: 4px; }
 .consultation-form { min-width: 0; }
 .consultation-actions { position: sticky; bottom: 0; z-index: 2; background: var(--surface); box-shadow: 0 -3px 12px rgba(0, 0, 0, .04); }
 details, .form-section { scroll-margin-top: 80px; }

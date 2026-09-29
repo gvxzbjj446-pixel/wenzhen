@@ -1,11 +1,10 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf %}
 {% block title %}方剂库{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
     <h1>方剂库</h1>
-    <div class="sub">常用方与经验方，开处方时可一键引用后加减</div>
+    <div class="sub">常用方与经验方模板 · 共 {{ total }} 首{% if q or source %}，找到 {{ formulas|length }} 首{% endif %}</div>
   </div>
   <div class="actions">
     <a class="btn btn-primary" href="{{ url_for('formulas.new') }}">＋ 新增方剂</a>
@@ -13,11 +12,17 @@
 </div>
 
 <div class="card">
-  <form class="search-bar" method="get">
-    <input type="search" name="q" value="{{ q }}" placeholder="方名 / 功用主治 / 药名" aria-label="搜索方剂">
+  <form class="search-bar formula-filters" method="get">
+    <input type="search" name="q" value="{{ q }}" placeholder="方名 / 出处 / 功用主治 / 药名" aria-label="搜索方剂">
+    <select name="source" aria-label="按出处筛选">
+      <option value="">全部出处</option>
+      {% for item in sources %}<option value="{{ item.source }}" {% if item.source == source %}selected{% endif %}>{{ item.source }}（{{ item.count }}）</option>{% endfor %}
+      {% if source and source not in sources|map(attribute='source')|list %}<option value="{{ source }}" selected>{{ source }}（0）</option>{% endif %}
+    </select>
     <button class="btn btn-primary" type="submit">搜索</button>
-    {% if q %}<a class="btn" href="{{ url_for('formulas.index') }}">清除</a>{% endif %}
+    {% if q or source %}<a class="btn" href="{{ url_for('formulas.index') }}">清除筛选</a>{% endif %}
   </form>
+  <p class="muted small">方剂仅作处方模板。引用后须由医师结合患者情况核对药味、剂量、用法和禁忌，不会自动生成已保存的处方。</p>
 </div>
 
 {% if formulas %}
@@ -25,23 +30,19 @@
     {% for f in formulas %}
       <section class="card" style="margin:0">
         <div class="card-head">
-          <h2>{{ f.name }} {% if f.source %}<span class="muted small" style="font-weight:400">{{ f.source }}</span>{% endif %}</h2>
-          <div class="actions">
-            <a class="btn btn-sm" href="{{ url_for('formulas.edit', formula_id=f.id) }}">编辑</a>
-            <form class="inline" method="post" action="{{ url_for('formulas.delete', formula_id=f.id) }}" data-confirm="确定删除方剂「{{ f.name }}」吗？">
-              {{ csrf() }}
-              <button class="btn btn-sm btn-danger" type="submit">删除</button>
-            </form>
-          </div>
+          <h2><a href="{{ url_for('formulas.detail', formula_id=f.id) }}">{{ f.name }}</a> {% if f.source %}<span class="muted small" style="font-weight:400">{{ f.source }}</span>{% endif %}</h2>
         </div>
         <p>{{ items[f.id]|herb_text }}</p>
         {% if f.indication %}<p class="muted small">{{ f.indication }}</p>{% endif %}
-        {% if f.usage %}<p class="muted small">用法：{{ f.usage }}</p>{% endif %}
-        {% if f.notes %}<p class="muted small">{{ f.notes }}</p>{% endif %}
+        <div class="actions">
+          <a class="btn btn-sm btn-primary" href="{{ url_for('formulas.use', formula_id=f.id) }}">用于问诊</a>
+          <a class="btn btn-sm" href="{{ url_for('formulas.detail', formula_id=f.id) }}">查看详情</a>
+          <a class="btn btn-sm" href="{{ url_for('formulas.new', from_formula=f.id) }}">复制为新方</a>
+        </div>
       </section>
     {% endfor %}
   </div>
 {% else %}
-  <div class="card"><div class="empty">{% if q %}没有找到「{{ q }}」相关的方剂。{% else %}方剂库为空。{% endif %}</div></div>
+  <div class="card"><div class="empty">{% if q or source %}没有找到符合条件的方剂，请修改关键词或清除筛选。{% else %}方剂库为空，新增一首常用方开始使用。{% endif %}</div></div>
 {% endif %}
 {% endblock %}

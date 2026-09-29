@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pagination %}
+{% block title %}引用{{ formula.name }} · 选择患者{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>选择患者</h1><div class="sub">引用「{{ formula.name }}」新建问诊 · 共 {{ pager.total }} 位{% if q %}匹配{% endif %}患者</div></div>
+  <a class="btn" href="{{ url_for('formulas.detail', formula_id=formula.id) }}">返回方剂详情</a>
+  <a class="btn btn-primary" href="{{ url_for('patients.new', from_formula=formula.id) }}">新患者建档并引用</a>
+</div>
+<div class="card">
+  <form class="search-bar" method="get">
+    <input type="search" name="q" value="{{ q }}" placeholder="姓名 / 电话 / 病历号" aria-label="搜索患者">
+    <button class="btn btn-primary" type="submit">搜索</button>
+    {% if q %}<a class="btn" href="{{ url_for('formulas.use', formula_id=formula.id) }}">清除</a>{% endif %}
+  </form>
+  <p class="muted small">选择患者后，只将方剂预填到新的问诊表单；请核对患者、过敏史和处方，确认保存后才会形成记录。</p>
+</div>
+<div class="card">
+  {% if patients %}
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>病历号</th><th>姓名</th><th>性别 / 年龄</th><th>电话</th><th></th></tr></thead>
+    <tbody>{% for p in patients %}
+      <tr>
+        <td class="muted">{{ p.id|record_no }}</td>
+        <td><strong>{{ p.name }}</strong>{% if p.allergies %} <span class="badge badge-danger" title="过敏史：{{ p.allergies }}">有过敏史</span>{% endif %}</td>
+        <td>{{ p.gender or '—' }} / {{ age_text(p.birth_date) }}</td>
+        <td>{{ p.phone or '—' }}</td>
+        <td><a class="btn btn-sm btn-primary" href="{{ url_for('visits.new', patient_id=p.id, from_formula=formula.id) }}">引用并新建问诊</a></td>
+      </tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {{ pagination(pager, 'formulas.use', formula_id=formula.id, q=q) }}
+  {% else %}
+  <div class="empty">{% if q %}没有找到匹配的患者，请调整搜索条件。{% else %}还没有患者档案。{% endif %}
+    <a href="{{ url_for('patients.new', name=q if q and not q.isdigit() else None, from_formula=formula.id) }}">新患者建档并引用</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

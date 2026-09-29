@@ -25,12 +25,19 @@
     <h1>{{ '编辑问诊记录' if editing else '问诊记录' }}</h1>
     <div class="sub">记录本次病情与诊断，保存后可直接制定理疗方案。</div>
   </div>
+  <div class="actions">
+    <a class="btn" href="#prescription" data-open-details="prescription">引用方剂 / 填写处方</a>
+  </div>
 </div>
 
 <div class="card">{{ patient_summary(patient, visit.visit_date) }}</div>
 
 {% if copied_from %}
   <div class="flashes"><div class="alert alert-info">已带入 {{ copied_from.visit_date }} 的主诉、诊断与处方；舌、脉及各项症状请按本次诊察重新填写。</div></div>
+{% endif %}
+
+{% if applied_formula %}
+<div class="alert alert-info">已从方剂库带入「{{ applied_formula.name }}」的组成与用法，尚未保存。请核对适用情况、剂量和煎服法后保存；本次加减不会修改原方。</div>
 {% endif %}
 
 <div class="layout-aside">

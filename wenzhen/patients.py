@@ -2,10 +2,10 @@
 
 from datetime import date
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
 from .db import get_db
-from .records import get_patient, items_for_visits
+from .records import get_formula, get_patient, items_for_visits
 from .therapy import patient_courses
 from .utils import escape_like, paginate, parse_date
 
@@ -83,6 +83,13 @@ def index():
 @bp.route("/new", methods=("GET", "POST"))
 def new():
     errors = []
+    source = request.form if request.method == "POST" else request.args
+    applied_formula = None
+    if "from_formula" in source:
+        formula_id = source.get("from_formula", type=int)
+        if not formula_id:
+            abort(404)
+        applied_formula = get_formula(formula_id)
     patient = {key: "" for key in PATIENT_FIELDS}
     patient["name"] = request.args.get("name", "").strip()
     if request.method == "POST":
@@ -103,9 +110,11 @@ def new():
             if same_name:
                 flash(f"提示：另有 {same_name} 位同名患者，请确认没有重复建档。", "warning")
             if request.form.get("after") == "visit":
-                return redirect(url_for("visits.new", patient_id=cur.lastrowid))
+                return redirect(url_for("visits.new", patient_id=cur.lastrowid,
+                                        from_formula=applied_formula["id"] if applied_formula else None))
             return redirect(url_for("patients.detail", patient_id=cur.lastrowid))
-    return render_template("patients/form.html", patient=patient, errors=errors, is_new=True)
+    return render_template("patients/form.html", patient=patient, errors=errors, is_new=True,
+                           applied_formula=applied_formula)
 
 
 @bp.route("/<int:patient_id>")

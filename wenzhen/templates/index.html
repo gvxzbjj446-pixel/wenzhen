@@ -8,6 +8,7 @@
     <div class="sub">{{ today }} · 今天的问诊与治疗</div>
   </div>
   <div class="actions">
+    <a class="btn" href="{{ url_for('formulas.index') }}">方剂库</a>
     <a class="btn" href="{{ url_for('patients.index') }}">患者档案</a>
     <a class="btn btn-primary" href="{{ url_for('patients.new') }}">＋ 新患者建档</a>
   </div>

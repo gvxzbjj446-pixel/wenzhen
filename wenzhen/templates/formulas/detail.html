@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, rx_grid %}
+{% block title %}{{ formula.name }} · 方剂库{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ formula.name }}</h1><div class="sub">方剂模板{% if formula.source %} · {{ formula.source }}{% endif %}</div></div>
+  <div class="actions">
+    <a class="btn btn-primary" href="{{ url_for('formulas.use', formula_id=formula.id) }}">用于问诊</a>
+    <a class="btn" href="{{ url_for('formulas.edit', formula_id=formula.id) }}">编辑</a>
+    <a class="btn" href="{{ url_for('formulas.new', from_formula=formula.id) }}">复制为新方</a>
+    <a class="btn" href="{{ url_for('formulas.index') }}">返回方剂库</a>
+  </div>
+</div>
+<section class="card">
+  <h2>组成 <span class="muted small">{{ items|length }} 味</span></h2>
+  {{ rx_grid(items) }}
+  <p class="muted small">此页为方剂模板，不是患者处方。引用后须由医师核对药味、剂量、用法和禁忌，调整并确认保存。</p>
+</section>
+<section class="card">
+  <dl class="kv">
+    <dt>出处</dt><dd>{{ formula.source or '未填写' }}</dd>
+    <dt>功用主治</dt><dd>{{ formula.indication or '未填写' }}</dd>
+    <dt>用法</dt><dd>{{ formula.usage or '未填写' }}</dd>
+    <dt>备注</dt><dd>{{ formula.notes or '未填写' }}</dd>
+  </dl>
+</section>
+<div class="actions">
+  <form class="inline" method="post" action="{{ url_for('formulas.delete', formula_id=formula.id) }}" data-confirm="确定删除方剂「{{ formula.name }}」吗？已保存的问诊处方不受影响。">
+    {{ csrf() }}
+    <button class="btn btn-sm btn-danger" type="submit">删除方剂</button>
+  </form>
+  <span class="muted small">编辑或删除模板不会改变已保存的问诊处方。</span>
+</div>
+{% endblock %}
