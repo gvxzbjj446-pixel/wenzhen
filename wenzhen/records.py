@@ -101,10 +101,14 @@ def herb_suggestions():
 
 def formula_payload():
     """供处方编辑器“引用方剂”使用的方剂数据。"""
-    formulas = get_db().execute("SELECT id, name, usage FROM formulas ORDER BY name").fetchall()
+    formulas = get_db().execute(
+        "SELECT id, name, source, indication, usage, notes FROM formulas ORDER BY name"
+    ).fetchall()
     items = items_for_formulas([f["id"] for f in formulas])
     return [
-        {"id": f["id"], "name": f["name"], "usage": f["usage"], "items": items[f["id"]]}
+        {"id": f["id"], "name": f["name"], "source": f["source"],
+         "indication": f["indication"], "usage": f["usage"], "notes": f["notes"],
+         "items": items[f["id"]]}
         for f in formulas
     ]
 

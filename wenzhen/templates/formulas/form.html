@@ -3,7 +3,9 @@
 {% block title %}{{ '新增方剂' if is_new else '编辑方剂' }}{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{{ '新增方剂' if is_new else '编辑方剂：' ~ formula.name }}</h1>
+  <div><h1>{{ '新增方剂' if is_new else '编辑方剂：' ~ formula.name }}</h1>
+    <div class="sub">保存常用方与经验方模板，引用时仍须核对并按患者情况加减</div></div>
+  <a class="btn" href="{{ url_for('formulas.index') }}">返回方剂库</a>
 </div>
 
 <form class="card" method="post" data-dirty-guard>
@@ -43,7 +45,7 @@
   </div>
 
   <div class="form-actions">
-    <button class="btn btn-primary" type="submit">保存</button>
+    <button class="btn btn-primary" type="submit">保存方剂</button>
     <a class="btn" href="{{ url_for('formulas.index') }}">取消</a>
   </div>
 </form>

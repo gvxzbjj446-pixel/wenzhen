@@ -9,7 +9,7 @@ from .compat import find_conflicts, rules_for_js
 from .db import get_db, get_settings
 from .fields import COPY_FIELDS, VISIT_SECTIONS, VISIT_TEXT_FIELDS, VISIT_TYPES
 from .herbs import COMMON_USAGES, HERB_NOTES, UNITS
-from .records import (due_followups, formula_payload, get_patient, get_visit,
+from .records import (due_followups, formula_items, formula_payload, get_formula, get_patient, get_visit,
                       herb_suggestions, previous_visit, save_items, visit_items)
 from .utils import escape_like, parse_date, parse_herb_rows, total_grams
 
@@ -118,17 +118,28 @@ def filled_sections(visit):
 
 
 def after_save(visit_id):
+    if request.form.get("after") == "therapy":
+        visit = get_visit(visit_id)
+        return redirect(url_for("therapy.new_course", patient_id=visit["patient_id"], visit_id=visit_id))
+    if request.form.get("after") == "record":
+        return redirect(url_for("visits.print_view", visit_id=visit_id, kind="record"))
     if request.form.get("after") == "print":
         return redirect(url_for("visits.print_view", visit_id=visit_id, kind="prescription"))
     return redirect(url_for("visits.detail", visit_id=visit_id))
 
 
-def render_form(patient, visit, items, errors, last, copied_from=None):
+def render_form(patient, visit, items, errors, last, copied_from=None, applied_formula=None):
+    # 折叠区仍渲染全部原字段，编辑旧病历时不会清空未展开的内容。
+    primary = tuple(s for s in VISIT_SECTIONS if s[0] in ("主诉与病史", "诊断与治法", "其他治疗与医嘱"))
+    detailed = tuple(s for s in VISIT_SECTIONS if s not in primary)
     return render_template(
         "visits/form.html",
         patient=patient, visit=visit, items=items, errors=errors,
         last=last, last_items=visit_items(last["id"]) if last else [],
-        copied_from=copied_from, sections=VISIT_SECTIONS, visit_types=VISIT_TYPES,
+        copied_from=copied_from, applied_formula=applied_formula,
+        sections=VISIT_SECTIONS, visit_types=VISIT_TYPES,
+        primary_sections=primary, detailed_sections=detailed,
+        has_details=any(visit[f.key] for _, fields in detailed for f in fields),
         formulas=formula_payload(), herbs=herb_suggestions(), units=UNITS,
         herb_notes=HERB_NOTES, usages=COMMON_USAGES, compat_rules=rules_for_js(),
     )
@@ -139,6 +150,7 @@ def new(patient_id):
     patient = get_patient(patient_id)
     last = previous_visit(patient_id)
     copied_from = None
+    applied_formula = None
     if request.method == "POST":
         visit, items, errors = parse_visit_form(request.form)
         if not errors:
@@ -149,6 +161,17 @@ def new(patient_id):
         errors, items = [], []
         visit = blank_visit(last is not None)
         copy_id = request.args.get("copy_from", type=int)
+        if "from_formula" in request.args:
+            if "copy_from" in request.args:
+                abort(400, description="请分别选择带入上次问诊或引用方剂。")
+            formula_id = request.args.get("from_formula", type=int)
+            if not formula_id:
+                abort(404)
+            applied_formula = get_formula(formula_id)
+            visit["formula_name"] = applied_formula["name"]
+            if applied_formula["usage"]:
+                visit["usage"] = applied_formula["usage"]
+            items = formula_items(formula_id)
         if copy_id:
             copied_from = get_visit(copy_id)
             if copied_from["patient_id"] != patient_id:
@@ -157,7 +180,7 @@ def new(patient_id):
                 visit[key] = copied_from[key]
             visit["visit_type"] = "复诊"
             items = visit_items(copy_id)
-    return render_form(patient, visit, items, errors, last, copied_from)
+    return render_form(patient, visit, items, errors, last, copied_from, applied_formula)
 
 
 @bp.route("/visits/<int:visit_id>")
@@ -178,6 +201,10 @@ def detail(visit_id):
         next_id=ids[pos + 1] if pos + 1 < len(ids) else None,
         conflicts=find_conflicts(item["herb"] for item in items),
         total_grams=total_grams(items),
+        related_courses=get_db().execute(
+            "SELECT id, diagnosis, body_part, status, planned_sessions FROM therapy_courses"
+            " WHERE visit_id = ? ORDER BY start_date DESC, id DESC", (visit_id,)
+        ).fetchall(),
     )
 
 

@@ -1,13 +1,15 @@
 {% extends "base.html" %}
 {% from "_macros.html" import visit_badge %}
-{% block title %}就诊记录{% endblock %}
+{% block title %}问诊记录{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>就诊记录</h1>
+    <h1>问诊记录</h1>
     <div class="sub">{{ start }}{% if end != start %} 至 {{ end }}{% endif %} · 共 {{ visits|length }} 人次 · 收费 ¥{{ total_fee|money }}</div>
   </div>
   <div class="actions">
+    <a class="btn btn-primary" href="{{ url_for('patients.index') }}">选患者写问诊</a>
+    <a class="btn" href="{{ url_for('patients.new') }}">新患者建档</a>
     <a class="btn" href="{{ url_for('main.export_visits', start=start, end=end) }}" data-download="就诊记录.csv">导出 Excel（CSV）</a>
   </div>
 </div>
@@ -31,7 +33,7 @@
     <div class="table-wrap">
       <table class="table">
         <thead>
-          <tr><th>日期</th><th>患者</th><th></th><th>主诉</th><th>诊断 / 证型</th><th>处方</th><th class="num">收费</th></tr>
+          <tr><th>日期</th><th>患者</th><th></th><th>主诉</th><th>诊断 / 证型</th><th class="num">收费</th><th>操作</th></tr>
         </thead>
         <tbody>
           {% for v in visits %}
@@ -42,8 +44,8 @@
               <td>{{ visit_badge(v.visit_type) }}</td>
               <td>{{ v.chief_complaint }}</td>
               <td>{{ v.tcm_disease }}{% if v.syndrome %}<div class="muted small">{{ v.syndrome }}</div>{% endif %}</td>
-              <td>{{ v.formula_name }}{% if v.dose_count %} <span class="muted small">× {{ v.dose_count }}</span>{% endif %}</td>
               <td class="num">{{ v.fee|money }}</td>
+              <td class="nowrap"><a href="{{ url_for('visits.detail', visit_id=v.id) }}">查看记录</a></td>
             </tr>
           {% endfor %}
         </tbody>

@@ -231,7 +231,10 @@ def test_web_mode_backup_page(client):
     assert "data-desktop-action" not in page
 
 
-def test_reset_password_from_command_line(tmp_path, capsys):
+def test_reset_password_from_command_line(tmp_path, capsys, monkeypatch):
+    # Windows 的原生消息框会等待人工关闭；断言结果并隔离界面通知。
+    monkeypatch.setattr(desktop, "show_info", print)
+    monkeypatch.setattr(desktop, "show_error", print)
     data = str(tmp_path / "data")
     assert desktop.main(["--data-dir", data, "--reset-password", "wang", "newpass1"]) == 0
     assert "已创建账户 wang" in capsys.readouterr().out

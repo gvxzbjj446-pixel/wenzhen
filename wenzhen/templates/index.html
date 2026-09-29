@@ -5,22 +5,18 @@
 <div class="page-head">
   <div>
     <h1>工作台</h1>
-    <div class="sub">{{ today }}</div>
+    <div class="sub">{{ today }} · 今天的问诊与治疗</div>
   </div>
   <div class="actions">
+    <a class="btn" href="{{ url_for('formulas.index') }}">方剂库</a>
+    <a class="btn" href="{{ url_for('patients.index') }}">患者档案</a>
     <a class="btn btn-primary" href="{{ url_for('patients.new') }}">＋ 新患者建档</a>
   </div>
 </div>
 
-{% if backup_status.remind_offsite or backup_status.mirror_error %}
+{% if backup_status.mirror_error %}
   <div class="alert alert-warning" style="margin-bottom:20px">
-    {% if backup_status.mirror_error %}
-      自动复制到外部备份文件夹失败：{{ backup_status.mirror_error }}
-    {% elif backup_status.days_since_offsite is none %}
-      还没有把数据备份到这台电脑以外的地方（U 盘、网盘等）。电脑损坏时，只存在本机的备份会一起丢失。
-    {% else %}
-      已有 {{ backup_status.days_since_offsite }} 天没有把数据备份到这台电脑以外的地方（U 盘、网盘等）。
-    {% endif %}
+    自动复制到外部备份文件夹失败：{{ backup_status.mirror_error }}
     <a href="{{ url_for('backups.index') }}">去备份 →</a>
   </div>
 {% endif %}
@@ -32,16 +28,17 @@
   </form>
 </div>
 
+<div class="workflow-links" aria-label="常用入口">
+  <a href="{{ url_for('patients.index') }}"><span class="workflow-number">01</span><span><strong>开始问诊</strong><small>选择患者，记录本次病情</small></span><span aria-hidden="true">→</span></a>
+  <a href="{{ url_for('therapy.index') }}"><span class="workflow-number">02</span><span><strong>理疗方案</strong><small>安排疗程，记录每次治疗</small></span><span aria-hidden="true">→</span></a>
+  <a href="{{ url_for('main.stats') }}"><span class="workflow-number">03</span><span><strong>数据分析</strong><small>查看接诊、治疗与随访变化</small></span><span aria-hidden="true">→</span></a>
+</div>
+
 <div class="kpis">
   <div class="kpi">
     <div class="label">今日接诊</div>
     <div class="value">{{ kpis.today_visits }}<small>人次</small></div>
     <div class="note">收费 ¥{{ kpis.today_revenue|money }}</div>
-  </div>
-  <div class="kpi">
-    <div class="label">本月接诊</div>
-    <div class="value">{{ kpis.month_visits }}<small>人次</small></div>
-    <div class="note">收费 ¥{{ kpis.month_revenue|money }}</div>
   </div>
   <div class="kpi">
     <div class="label">患者档案</div>
@@ -63,8 +60,8 @@
 <div class="layout-aside">
   <section class="card">
     <div class="card-head">
-      <h2>今日就诊</h2>
-      <a class="small" href="{{ url_for('visits.index') }}">全部就诊记录 →</a>
+      <h2>今日问诊</h2>
+      <a class="small" href="{{ url_for('visits.index') }}">全部问诊记录 →</a>
     </div>
     {% if today_visits %}
       <div class="table-wrap">
@@ -125,7 +122,7 @@
     </section>
     <section class="card">
       <div class="card-head">
-        <h2>理疗康复</h2>
+        <h2>理疗方案</h2>
         <a class="small" href="{{ url_for('therapy.index') }}">全部 →</a>
       </div>
       {% if therapy.today %}
